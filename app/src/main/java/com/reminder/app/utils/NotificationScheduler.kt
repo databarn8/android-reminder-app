@@ -73,11 +73,10 @@ class NotificationScheduler : BroadcastReceiver() {
             ScreenFlashManager.triggerVibration(context, vibrationPattern)
         }
         
-        // Trigger sound if enabled
-        if (enableSound) {
-            ScreenFlashManager.triggerSound(context)
-        }
+        // Launch alarm activity for immediate alerts
+        launchAlarmActivity(context, title, content, reminderId)
         
+        // Also show notification as backup
         showNotification(context, title, content, reminderId)
         
         // Send email if reminder data is available
@@ -311,6 +310,23 @@ class NotificationScheduler : BroadcastReceiver() {
                 } catch (e: Exception) {
                     android.util.Log.e("NotificationScheduler", "Even toast failed: ${e.message}")
                 }
+            }
+        }
+
+        private fun launchAlarmActivity(context: Context, title: String, content: String, reminderId: Int) {
+            try {
+                val intent = android.content.Intent(context, com.reminder.app.ui.screens.AlarmActivity::class.java).apply {
+                    putExtra("alarm_title", title)
+                    putExtra("alarm_content", content)
+                    putExtra("reminder_id", reminderId)
+                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                
+                context.startActivity(intent)
+                android.util.Log.d("NotificationScheduler", "AlarmActivity launched for reminder: $title")
+            } catch (e: Exception) {
+                android.util.Log.e("NotificationScheduler", "Failed to launch AlarmActivity: ${e.message}")
+                e.printStackTrace()
             }
         }
 

@@ -78,6 +78,20 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.screens.AlarmActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:showOnLockScreen="true"
+            android:turnScreenOn="true"
+            android:showWhenLocked="true"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="com.reminder.app.ALARM_TRIGGER" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <receiver
             android:name=".utils.NotificationScheduler"
             android:enabled="true"
