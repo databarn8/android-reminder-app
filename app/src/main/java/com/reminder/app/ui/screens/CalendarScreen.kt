@@ -73,7 +73,12 @@ fun CalendarScreen(
             TopAppBar(
                 title = { 
                     Text(
-                        text = "",
+                        text = when (currentViewType) {
+                            CalendarViewType.DAILY -> currentDate.format(DateTimeFormatter.ofPattern("MMMM d, yyyy"))
+                            CalendarViewType.WEEKLY -> "Week of ${currentDate.with(java.time.DayOfWeek.MONDAY).format(DateTimeFormatter.ofPattern("MMM d"))}"
+                            CalendarViewType.MONTHLY -> currentDate.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
+                            CalendarViewType.YEARLY -> currentDate.year.toString()
+                        },
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -255,7 +260,7 @@ fun DailyView(
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                text = currentDate.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy")),
+                text = year.toString(),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 16.dp)
