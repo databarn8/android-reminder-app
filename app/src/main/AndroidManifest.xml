@@ -81,7 +81,11 @@
         <receiver
             android:name=".utils.NotificationScheduler"
             android:enabled="true"
-            android:exported="true" />
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.reminder.app.ALARM_TRIGGER" />
+            </intent-filter>
+        </receiver>
             
         <!-- Boot receiver to reschedule alarms after device restart -->
         <receiver

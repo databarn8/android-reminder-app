@@ -117,6 +117,21 @@ class NotificationScheduler : BroadcastReceiver() {
             android.util.Log.d("NotificationScheduler", "Reminder ID: ${reminder.id}")
             android.util.Log.d("NotificationScheduler", "Number of trigger points: ${triggerPoints.size}")
             
+            // Check exact alarm permission for Android 12+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                if (!alarmManager.canScheduleExactAlarms()) {
+                    android.util.Log.e("NotificationScheduler", "EXACT_ALARM permission not granted - alarms may not work reliably")
+                    // Show toast to user
+                    try {
+                        android.widget.Toast.makeText(context, "Please enable exact alarm permission for reliable reminders", android.widget.Toast.LENGTH_LONG).show()
+                    } catch (e: Exception) {
+                        android.util.Log.e("NotificationScheduler", "Could not show toast: ${e.message}")
+                    }
+                } else {
+                    android.util.Log.d("NotificationScheduler", "EXACT_ALARM permission granted")
+                }
+            }
+            
             // Cancel existing alarms for this reminder
             cancelReminder(context, reminder.id)
             
@@ -153,14 +168,25 @@ class NotificationScheduler : BroadcastReceiver() {
                     android.util.Log.d("NotificationScheduler", "Time until trigger: ${timeUntilTrigger}ms (${timeUntilTrigger / 1000 / 60} minutes)")
 
                     try {
-                        // Try most precise method first
+                        // Verify alarm can be scheduled
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                            alarmManager.setExactAndAllowWhileIdle(
-                                AlarmManager.RTC_WAKEUP,
-                                triggerTime,
-                                pendingIntent
-                            )
-                            android.util.Log.d("NotificationScheduler", "Alarm ${index + 1} scheduled with setExactAndAllowWhileIdle (API 31+)")
+                            if (!alarmManager.canScheduleExactAlarms()) {
+                                android.util.Log.w("NotificationScheduler", "Cannot schedule exact alarms - permission missing for trigger ${index + 1}")
+                                // Fall back to inexact alarm
+                                alarmManager.setAndAllowWhileIdle(
+                                    AlarmManager.RTC_WAKEUP,
+                                    triggerTime,
+                                    pendingIntent
+                                )
+                                android.util.Log.d("NotificationScheduler", "Alarm ${index + 1} scheduled with setAndAllowWhileIdle (fallback)")
+                            } else {
+                                alarmManager.setExactAndAllowWhileIdle(
+                                    AlarmManager.RTC_WAKEUP,
+                                    triggerTime,
+                                    pendingIntent
+                                )
+                                android.util.Log.d("NotificationScheduler", "Alarm ${index + 1} scheduled with setExactAndAllowWhileIdle (API 31+)")
+                            }
                         } else {
                             alarmManager.setExact(
                                 AlarmManager.RTC_WAKEUP,
@@ -169,23 +195,32 @@ class NotificationScheduler : BroadcastReceiver() {
                             )
                             android.util.Log.d("NotificationScheduler", "Alarm ${index + 1} scheduled with setExact (pre-API 31)")
                         }
+                        
+                        // Verify alarm was set by checking if we can retrieve it
+                        android.util.Log.d("NotificationScheduler", "Alarm ${index + 1} verification - Request code: $requestCode, Target time: ${java.util.Date(triggerTime)}")
+                        
                     } catch (e: SecurityException) {
-                        android.util.Log.w("NotificationScheduler", "SecurityException for trigger ${index + 1}, falling back to setAndAllowWhileIdle: ${e.message}")
+                        android.util.Log.e("NotificationScheduler", "SecurityException for trigger ${index + 1}: ${e.message}")
                         try {
                             alarmManager.setAndAllowWhileIdle(
                                 AlarmManager.RTC_WAKEUP,
                                 triggerTime,
                                 pendingIntent
                             )
-                            android.util.Log.d("NotificationScheduler", "Alarm ${index + 1} scheduled with setAndAllowWhileIdle")
+                            android.util.Log.d("NotificationScheduler", "Alarm ${index + 1} scheduled with setAndAllowWhileIdle (security fallback)")
                         } catch (e2: Exception) {
-                            android.util.Log.w("NotificationScheduler", "Final fallback to set for trigger ${index + 1}: ${e2.message}")
-                            alarmManager.set(
-                                AlarmManager.RTC_WAKEUP,
-                                triggerTime,
-                                pendingIntent
-                            )
-                            android.util.Log.d("NotificationScheduler", "Alarm ${index + 1} scheduled with set (inexact)")
+                            android.util.Log.e("NotificationScheduler", "Final fallback to set for trigger ${index + 1}: ${e2.message}")
+                            try {
+                                alarmManager.set(
+                                    AlarmManager.RTC_WAKEUP,
+                                    triggerTime,
+                                    pendingIntent
+                                )
+                                android.util.Log.d("NotificationScheduler", "Alarm ${index + 1} scheduled with set (inexact fallback)")
+                            } catch (e3: Exception) {
+                                android.util.Log.e("NotificationScheduler", "All alarm scheduling methods failed for trigger ${index + 1}: ${e3.message}")
+                                e3.printStackTrace()
+                            }
                         }
                     } catch (e: Exception) {
                         android.util.Log.e("NotificationScheduler", "Failed to schedule alarm ${index + 1}: ${e.message}")

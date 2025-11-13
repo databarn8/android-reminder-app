@@ -949,6 +949,16 @@ fun InputScreen(
     // Priority selection
     var selectedPriority by remember { mutableStateOf(5) }
     
+    // Trigger configuration state
+    var showTriggerConfig by remember { mutableStateOf(false) }
+    var enableAtDueTime by remember { mutableStateOf(true) }
+    var enableMinutesBefore by remember { mutableStateOf(false) }
+    var minutesBeforeValue by remember { mutableStateOf(15) }
+    var enableHoursBefore by remember { mutableStateOf(false) }
+    var hoursBeforeValue by remember { mutableStateOf(1) }
+    var enableDaysBefore by remember { mutableStateOf(false) }
+    var daysBeforeValue by remember { mutableStateOf(1) }
+    
     // Enhanced date/time state
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var selectedTime by remember { mutableStateOf(LocalTime.NOON) }
@@ -1079,6 +1089,35 @@ fun InputScreen(
                                     .toInstant()
                                     .toEpochMilli()
                                 
+                                // Build trigger points JSON
+                                val triggerPoints = mutableListOf<com.reminder.app.data.TriggerPoint>()
+                                if (enableAtDueTime) {
+                                    triggerPoints.add(com.reminder.app.data.TriggerPoint(com.reminder.app.data.TriggerType.AT_DUE_TIME))
+                                }
+                                if (enableMinutesBefore) {
+                                    triggerPoints.add(com.reminder.app.data.TriggerPoint(com.reminder.app.data.TriggerType.MINUTES_BEFORE, minutesBeforeValue))
+                                }
+                                if (enableHoursBefore) {
+                                    triggerPoints.add(com.reminder.app.data.TriggerType.HOURS_BEFORE, hoursBeforeValue))
+                                }
+                                if (enableDaysBefore) {
+                                    triggerPoints.add(com.reminder.app.data.TriggerType.DAYS_BEFORE, daysBeforeValue))
+                                }
+                                
+                                // Convert to JSON
+                                val triggerPointsJson = org.json.JSONArray().apply {
+                                    triggerPoints.forEach { trigger ->
+                                        put(org.json.JSONObject().apply {
+                                            put("type", trigger.type.name)
+                                            put("value", trigger.value)
+                                            put("customOffsetMs", trigger.customOffsetMs)
+                                            put("enableFlash", true)
+                                            put("enableSound", true)
+                                            put("enableVibration", true)
+                                        })
+                                    }
+                                }.toString()
+                                
                                 val reminder = com.reminder.app.data.Reminder(
                                     content = content,
                                     category = extractCategory(content),
@@ -1087,7 +1126,8 @@ fun InputScreen(
                                     whenDay = whenDay.ifBlank { null },
                                     whenTime = whenTime.ifBlank { null },
                                     voiceInput = content,
-                                    isProcessed = true
+                                    isProcessed = true,
+                                    triggerPoints = triggerPointsJson
                                 )
                                 
                                 if (reminderId != null) {
@@ -1318,6 +1358,147 @@ fun InputScreen(
                         Text("10", style = MaterialTheme.typography.bodySmall)
                     }
                     
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Trigger Configuration Section
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "⏰ Alert Settings",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                TextButton(
+                                    onClick = { showTriggerConfig = !showTriggerConfig }
+                                ) {
+                                    Text(if (showTriggerConfig) "Hide" else "Configure")
+                                }
+                            }
+                            
+                            if (showTriggerConfig) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                
+                                // At Due Time
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = enableAtDueTime,
+                                        onCheckedChange = { enableAtDueTime = it }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "At due time",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                                
+                                // Minutes Before
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = enableMinutesBefore,
+                                        onCheckedChange = { enableMinutesBefore = it }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Minutes before:",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Slider(
+                                        value = minutesBeforeValue.toFloat(),
+                                        onValueChange = { minutesBeforeValue = it.toInt() },
+                                        valueRange = 5f..60f,
+                                        steps = 11,
+                                        modifier = Modifier.weight(1f),
+                                        enabled = enableMinutesBefore
+                                    )
+                                    Text(
+                                        text = "${minutesBeforeValue}m",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.width(30.dp)
+                                    )
+                                }
+                                
+                                // Hours Before
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = enableHoursBefore,
+                                        onCheckedChange = { enableHoursBefore = it }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Hours before:",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Slider(
+                                        value = hoursBeforeValue.toFloat(),
+                                        onValueChange = { hoursBeforeValue = it.toInt() },
+                                        valueRange = 1f..24f,
+                                        steps = 22,
+                                        modifier = Modifier.weight(1f),
+                                        enabled = enableHoursBefore
+                                    )
+                                    Text(
+                                        text = "${hoursBeforeValue}h",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.width(30.dp)
+                                    )
+                                }
+                                
+                                // Days Before
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = enableDaysBefore,
+                                        onCheckedChange = { enableDaysBefore = it }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Days before:",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Slider(
+                                        value = daysBeforeValue.toFloat(),
+                                        onValueChange = { daysBeforeValue = it.toInt() },
+                                        valueRange = 1f..7f,
+                                        steps = 5,
+                                        modifier = Modifier.weight(1f),
+                                        enabled = enableDaysBefore
+                                    )
+                                    Text(
+                                        text = "${daysBeforeValue}d",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.width(30.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     // Single voice input button - ONE CLICK
@@ -1432,6 +1613,22 @@ fun InputScreen(
                                 else -> MaterialTheme.colorScheme.secondary
                             }
                         )
+                        
+                        if (showTriggerConfig) {
+                            val triggerSummary = mutableListOf<String>()
+                            if (enableAtDueTime) triggerSummary.add("At due time")
+                            if (enableMinutesBefore) triggerSummary.add("${minutesBeforeValue}m before")
+                            if (enableHoursBefore) triggerSummary.add("${hoursBeforeValue}h before")
+                            if (enableDaysBefore) triggerSummary.add("${daysBeforeValue}d before")
+                            
+                            if (triggerSummary.isNotEmpty()) {
+                                Text(
+                                    text = "⏰ Alerts: ${triggerSummary.joinToString(", ")}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.tertiary
+                                )
+                            }
+                        }
                     }
                 }
             }

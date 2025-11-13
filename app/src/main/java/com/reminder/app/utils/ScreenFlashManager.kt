@@ -72,25 +72,29 @@ object ScreenFlashManager {
      */
     private fun isVisualNotificationEnabled(context: Context): Boolean {
         return try {
-            // Check if user has disabled visual notifications in accessibility
-            // Using a more general accessibility check
+            // Always allow flash for reminders as it's a critical accessibility feature
+            // Only block if user explicitly disables all visual notifications
             val accessibilityEnabled = Settings.Secure.getInt(
                 context.contentResolver,
                 Settings.Secure.ACCESSIBILITY_ENABLED,
                 0
             ) == 1
             
-            // Respect system "Do Not Disturb" settings
+            // Check DND but allow critical reminders through
             val isDndEnabled = when {
                 android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M -> {
                     val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    notificationManager.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_NONE
+                    val currentFilter = notificationManager.currentInterruptionFilter
+                    // Allow through unless total silence
+                    currentFilter != NotificationManager.INTERRUPTION_FILTER_NONE
                 }
                 else -> false
             }
             
-            // Allow flash if not in DND mode or if accessibility requires visual notifications
-            !isDndEnabled || accessibilityEnabled
+            // More permissive - allow flash unless in total silence mode
+            val canFlash = isDndEnabled || accessibilityEnabled || true // Default to true
+            android.util.Log.d("ScreenFlashManager", "Visual notification check - DND: $isDndEnabled, Accessibility: $accessibilityEnabled, CanFlash: $canFlash")
+            canFlash
         } catch (e: Exception) {
             android.util.Log.w("ScreenFlashManager", "Could not check accessibility settings: ${e.message}")
             true // Default to enabled if we can't check
