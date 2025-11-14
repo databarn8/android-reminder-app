@@ -1709,11 +1709,13 @@ fun InputScreen(
             selectedDate = selectedDate,
             onDateSelected = { date ->
                 selectedDate = date
-                // Update whenDay field for compatibility
-                whenDay = when {
-                    date == LocalDate.now() -> "Today"
-                    date == LocalDate.now().plusDays(1) -> "Tomorrow"
-                    else -> date.format(DateTimeFormatter.ofPattern("EEEE"))
+                // Only update whenDay if it's currently blank (preserve user input)
+                if (whenDay.isBlank()) {
+                    whenDay = when {
+                        date == LocalDate.now() -> "Today"
+                        date == LocalDate.now().plusDays(1) -> "Tomorrow"
+                        else -> date.format(DateTimeFormatter.ofPattern("EEEE"))
+                    }
                 }
             },
             onDismiss = { showDatePicker = false }
@@ -1726,8 +1728,10 @@ fun InputScreen(
             selectedTime = selectedTime,
             onTimeSelected = { time ->
                 selectedTime = time
-                // Update whenTime field for compatibility
-                whenTime = time.format(DateTimeFormatter.ofPattern("h:mm a"))
+                // Only update whenTime if it's currently blank (preserve user input)
+                if (whenTime.isBlank()) {
+                    whenTime = time.format(DateTimeFormatter.ofPattern("h:mm a"))
+                }
             },
             onDismiss = { showTimePicker = false }
         )
