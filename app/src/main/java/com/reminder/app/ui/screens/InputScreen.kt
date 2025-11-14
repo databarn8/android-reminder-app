@@ -1047,6 +1047,7 @@ fun InputScreen(
                         }
                         
                         android.util.Log.d("InputScreen", "Loaded reminder for editing: id=${reminder.id}, reminderTime=${reminder.reminderTime}, whenDay=${reminder.whenDay}, whenTime=${reminder.whenTime}")
+                        android.util.Log.d("InputScreen", "Final selectedTime='$selectedTime', selectedDate='$selectedDate'")
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("InputScreen", "Error loading reminder: ${e.message}")
