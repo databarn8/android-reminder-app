@@ -985,14 +985,54 @@ fun InputScreen(
         8 to "High", 9 to "Very High", 10 to "Urgent"
     )
     
+    // Simple function to parse time strings like "5pm", "3:30pm", "10am"
+    fun parseTimeString(timeStr: String): LocalTime {
+        val cleanTime = timeStr.lowercase().trim()
+        
+        // Handle "5pm", "3:30pm", "10:15 am"
+        if (cleanTime.contains("am") || cleanTime.contains("pm")) {
+            val timePattern = Regex("(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)")
+            val match = timePattern.find(cleanTime)
+            if (match != null) {
+                val hour = match.groupValues[1].toInt()
+                val minute = match.groupValues[2].takeIf { it.isNotBlank() }?.toInt() ?: 0
+                val ampm = match.groupValues[3]
+                val parsedHour = if (ampm == "am") {
+                    if (hour == 12) 0 else hour
+                } else {
+                    if (hour == 12) 12 else hour + 12
+                }
+                return LocalTime.of(parsedHour, minute)
+            }
+        }
+        
+        // Handle "15:30", "09:45" (24-hour format)
+        if (cleanTime.contains(":")) {
+            val parts = cleanTime.split(":")
+            if (parts.size == 2) {
+                val hour = parts[0].toIntOrNull()
+                val minute = parts[1].toIntOrNull()
+                if (hour != null && minute != null) {
+                    return LocalTime.of(hour.coerceIn(0, 23), minute.coerceIn(0, 59))
+                }
+            }
+        }
+        
+        // Handle simple numbers like "5", "15"
+        val hour = cleanTime.toIntOrNull()
+        if (hour != null) {
+            return LocalTime.of(hour.coerceIn(0, 23), 0)
+        }
+        
+        // Fallback to noon
+        return LocalTime.NOON
+    }
+
     // Load existing reminder data if editing
     LaunchedEffect(reminderId) {
-        android.util.Log.d("InputScreen", "LaunchedEffect(reminderId) triggered with reminderId=$reminderId")
         reminderId?.let { id ->
             scope.launch {
                 try {
-                    // Add a small delay to ensure database operations are complete
-                    kotlinx.coroutines.delay(100)
                     val reminder = viewModel.getReminderById(id)
                     if (reminder != null) {
                         loadedReminder = reminder
@@ -1000,79 +1040,21 @@ fun InputScreen(
                         selectedPriority = reminder.importance
                         whenDay = reminder.whenDay ?: ""
                         whenTime = reminder.whenTime ?: ""
-                        android.util.Log.d("InputScreen", "Loaded whenDay='$whenDay', whenTime='$whenTime' from database")
                         
-                        // Restore selectedDate and selectedTime from reminderTime
-                        try {
-                            // Always restore date from reminderTime
-                            val reminderDateTime = java.time.Instant.ofEpochMilli(reminder.reminderTime)
-                                .atZone(java.time.ZoneId.systemDefault())
-                                .toLocalDateTime()
-                            selectedDate = reminderDateTime.toLocalDate()
-                            
-                        // Try to parse whenTime if it exists, otherwise use reminderTime
-                        if (!reminder.whenTime.isNullOrBlank()) {
-                            android.util.Log.d("InputScreen", "Attempting to parse whenTime: '${reminder.whenTime}'")
-                            
-                            // Simple test: just try to parse common formats
-                            val whenTimeLower = reminder.whenTime.lowercase().trim()
-                            selectedTime = when {
-                                whenTimeLower.contains("am") || whenTimeLower.contains("pm") -> {
-                                    // Handle "3pm", "3:30pm", "10:15 am"
-                                    val timePattern = Regex("(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)")
-                                    val match = timePattern.find(whenTimeLower)
-                                    if (match != null) {
-                                        val hour = match.groupValues[1].toInt()
-                                        val minute = match.groupValues[2].takeIf { it.isNotBlank() }?.toInt() ?: 0
-                                        val ampm = match.groupValues[3]
-                                        val parsedHour = if (ampm == "am") {
-                                            if (hour == 12) 0 else hour
-                                        } else {
-                                            if (hour == 12) 12 else hour + 12
-                                        }
-                                        java.time.LocalTime.of(parsedHour, minute)
-                                    } else {
-                                        java.time.LocalTime.NOON
-                                    }
-                                }
-                                whenTimeLower.contains(":") -> {
-                                    // Handle "15:30", "09:45"
-                                    val parts = whenTimeLower.split(":")
-                                    if (parts.size == 2) {
-                                        val hour = parts[0].toIntOrNull() ?: 12
-                                        val minute = parts[1].toIntOrNull() ?: 0
-                                        java.time.LocalTime.of(hour.coerceIn(0, 23), minute.coerceIn(0, 59))
-                                    } else {
-                                        java.time.LocalTime.NOON
-                                    }
-                                }
-                                else -> {
-                                    // Handle simple numbers like "5", "15"
-                                    val hour = whenTimeLower.toIntOrNull()
-                                    if (hour != null) {
-                                        java.time.LocalTime.of(hour.coerceIn(0, 23), 0)
-                                    } else {
-                                        java.time.LocalTime.NOON
-                                    }
-                                }
-                            }
-                            
-                            android.util.Log.d("InputScreen", "Parsed selectedTime='$selectedTime' from whenTime='${reminder.whenTime}'")
+                        // Load date from reminderTime
+                        val reminderDateTime = java.time.Instant.ofEpochMilli(reminder.reminderTime)
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .toLocalDateTime()
+                        selectedDate = reminderDateTime.toLocalDate()
+                        
+                        // Load time - prioritize whenTime, fallback to reminderTime
+                        selectedTime = if (!reminder.whenTime.isNullOrBlank()) {
+                            parseTimeString(reminder.whenTime)
                         } else {
-                            // No whenTime saved, use reminderTime
-                            selectedTime = reminderDateTime.toLocalTime()
-                            android.util.Log.d("InputScreen", "No whenTime saved, using selectedTime='$selectedTime' from reminderTime")
-                        }
-                            
-                        } catch (e: Exception) {
-                            // Fallback to current date/time if parsing fails
-                            selectedDate = java.time.LocalDate.now()
-                            selectedTime = java.time.LocalTime.NOON
-                            android.util.Log.d("InputScreen", "Failed to parse time: ${e.message}, using NOON")
+                            reminderDateTime.toLocalTime()
                         }
                         
-                        android.util.Log.d("InputScreen", "Loaded reminder for editing: id=${reminder.id}, reminderTime=${reminder.reminderTime}, whenDay=${reminder.whenDay}, whenTime=${reminder.whenTime}")
-                        android.util.Log.d("InputScreen", "Final selectedTime='$selectedTime', selectedDate='$selectedDate'")
+                        android.util.Log.d("InputScreen", "Loaded reminder: whenTime='${reminder.whenTime}' -> selectedTime='$selectedTime'")
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("InputScreen", "Error loading reminder: ${e.message}")
@@ -1081,40 +1063,7 @@ fun InputScreen(
         }
     }
     
-    // Reload data when screen becomes visible (handle potential stale data)
-    LaunchedEffect(reminderId, loadedReminder) {
-        reminderId?.let { id ->
-            if (loadedReminder != null) {
-                scope.launch {
-                    // Double-check the data after a short delay to catch any race conditions
-                    kotlinx.coroutines.delay(300)
-                    val freshReminder = viewModel.getReminderById(id)
-                    if (freshReminder != null && freshReminder.reminderTime != loadedReminder.reminderTime) {
-                        android.util.Log.d("InputScreen", "Detected stale data, reloading: old=${loadedReminder.reminderTime}, new=${freshReminder.reminderTime}")
-                        loadedReminder = freshReminder
-                        content = freshReminder.content
-                        selectedPriority = freshReminder.importance
-                        whenDay = freshReminder.whenDay ?: ""
-                        whenTime = freshReminder.whenTime ?: ""
-                        
-                        // Update date/time fields only if not already loaded from database
-                        if (reminderId == null) { // Only for new reminders
-                            try {
-                                val reminderDateTime = java.time.Instant.ofEpochMilli(freshReminder.reminderTime)
-                                    .atZone(java.time.ZoneId.systemDefault())
-                                    .toLocalDateTime()
-                                selectedDate = reminderDateTime.toLocalDate()
-                                selectedTime = reminderDateTime.toLocalTime()
-                            } catch (e: Exception) {
-                                selectedDate = java.time.LocalDate.now()
-                                selectedTime = java.time.LocalTime.NOON
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+
     
     // Speech states
     val isListening by speechManager.isListening.collectAsState()
@@ -1427,21 +1376,8 @@ fun InputScreen(
                                         whenTime = suggestion
                                         showTimeSuggestions = false
                                         
-                                        // Parse and update selected time if it's a specific time
-                                        val timePattern = Regex("(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?", RegexOption.IGNORE_CASE)
-                                        val match = timePattern.find(suggestion)
-                                        if (match != null) {
-                                            val hour = match.groupValues[1].toInt()
-                                            val minute = match.groupValues[2].takeIf { it.isNotBlank() }?.toInt() ?: 0
-                                            val ampm = match.groupValues[3].lowercase()
-                                            
-                                            val parsedHour = when {
-                                                ampm == "am" -> if (hour == 12) 0 else hour
-                                                ampm == "pm" -> if (hour == 12) 12 else hour + 12
-                                                else -> hour
-                                            }
-                                            selectedTime = LocalTime.of(parsedHour, minute)
-                                        }
+                                        // Use our consistent time parsing function
+                                        selectedTime = parseTimeString(suggestion)
                                     }
                                 )
                             }
