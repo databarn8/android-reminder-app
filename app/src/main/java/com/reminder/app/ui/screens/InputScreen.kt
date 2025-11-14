@@ -996,6 +996,7 @@ fun InputScreen(
                         selectedPriority = reminder.importance
                         whenDay = reminder.whenDay ?: ""
                         whenTime = reminder.whenTime ?: ""
+                        android.util.Log.d("InputScreen", "Loaded whenDay='$whenDay', whenTime='$whenTime' from database")
                         
                         // Restore selectedDate and selectedTime from reminderTime
                         try {
@@ -1004,10 +1005,12 @@ fun InputScreen(
                                 .toLocalDateTime()
                             selectedDate = reminderDateTime.toLocalDate()
                             selectedTime = reminderDateTime.toLocalTime()
+                            android.util.Log.d("InputScreen", "Restored selectedTime='$selectedTime' from reminderTime")
                         } catch (e: Exception) {
                             // Fallback to current date/time if parsing fails
                             selectedDate = java.time.LocalDate.now()
                             selectedTime = java.time.LocalTime.NOON
+                            android.util.Log.d("InputScreen", "Failed to parse reminderTime, using NOON")
                         }
                         
                         android.util.Log.d("InputScreen", "Loaded reminder for editing: id=${reminder.id}, reminderTime=${reminder.reminderTime}, whenDay=${reminder.whenDay}, whenTime=${reminder.whenTime}")
