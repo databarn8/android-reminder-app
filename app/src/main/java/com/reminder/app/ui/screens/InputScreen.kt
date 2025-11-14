@@ -45,6 +45,40 @@ import kotlinx.coroutines.launch
 
 // Enhanced extraction functions for common reminder patterns
 
+// Helper function to format time for content display
+fun formatTimeForContent(time: LocalTime): String {
+    return when {
+        time.minute == 0 -> "${time.hour % 12}pm"
+        else -> "${time.hour % 12}:${String.format("%02d", time.minute)}pm"
+    }
+}
+
+// Helper function to format date for content display  
+fun formatDateForContent(date: LocalDate): String {
+    val today = LocalDate.now()
+    return when {
+        date.isEqual(today) -> "Today"
+        date.isEqual(today.plusDays(1)) -> "Tomorrow" 
+        date.isEqual(today.plusDays(-1)) -> "Yesterday"
+        else -> date.format(DateTimeFormatter.ofPattern("MMM dd"))
+    }
+}
+
+// Helper function to merge time/date into content
+fun mergeTimeDateIntoContent(content: String, time: LocalTime?, date: LocalDate?): String {
+    val timeStr = time?.let { formatTimeForContent(it) }
+    val dateStr = date?.let { formatDateForContent(it) }
+    
+    return when {
+        timeStr != null && dateStr != null -> "$timeStr $dateStr - $content"
+        timeStr != null -> "$timeStr - $content"  
+        dateStr != null -> "$dateStr - $content"
+        else -> content
+    }
+}
+
+// Enhanced extraction functions for common reminder patterns
+
 fun extractCategory(text: String): String {
     return when {
         text.contains("work", ignoreCase = true) || text.contains("meeting", ignoreCase = true) || 
@@ -1176,7 +1210,8 @@ fun InputScreen(
                                     triggerPoints.add(com.reminder.app.data.TriggerType.HOURS_BEFORE, hoursBeforeValue))
                                 }
                                 if (enableDaysBefore) {
-                                    triggerPoints.add(com.reminder.app.data.TriggerType.DAYS_BEFORE, daysBeforeValue))
+                                    triggerPoints.add(com.reminder.app.data.TriggerType.DAYS_BEFORE, daysBeforeValue)
+                                }
                                 }
                                 
                                 // Convert to JSON
@@ -1193,14 +1228,17 @@ fun InputScreen(
                                     }
                                 }.toString()
                                 
+                                // Merge time/date into content for proper display
+                                val mergedContent = mergeTimeDateIntoContent(content, selectedTime, selectedDate)
+                                
                                 val reminder = com.reminder.app.data.Reminder(
-                                    content = content,
-                                    category = extractCategory(content),
+                                    content = mergedContent,
+                                    category = extractCategory(mergedContent),
                                     importance = selectedPriority,
                                     reminderTime = reminderTimeMillis,
                                     whenDay = whenDay.ifBlank { null },
                                     whenTime = whenTime.ifBlank { null },
-                                    voiceInput = content,
+                                    voiceInput = mergedContent,
                                     isProcessed = true,
                                     triggerPoints = triggerPointsJson
                                 )
