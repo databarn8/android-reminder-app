@@ -994,6 +994,19 @@ fun InputScreen(
                         selectedPriority = reminder.importance
                         whenDay = reminder.whenDay ?: ""
                         whenTime = reminder.whenTime ?: ""
+                        
+                        // Restore selectedDate and selectedTime from reminderTime
+                        try {
+                            val reminderDateTime = java.time.Instant.ofEpochMilli(reminder.reminderTime)
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .toLocalDateTime()
+                            selectedDate = reminderDateTime.toLocalDate()
+                            selectedTime = reminderDateTime.toLocalTime()
+                        } catch (e: Exception) {
+                            // Fallback to current date/time if parsing fails
+                            selectedDate = java.time.LocalDate.now()
+                            selectedTime = java.time.LocalTime.NOON
+                        }
                     }
                 } catch (e: Exception) {
                     // Silent error handling
@@ -1088,6 +1101,14 @@ fun InputScreen(
                                     .atZone(java.time.ZoneId.systemDefault())
                                     .toInstant()
                                     .toEpochMilli()
+                                
+                                // Update whenDay and whenTime from selectedDate and selectedTime
+                                whenDay = when {
+                                    selectedDate == LocalDate.now() -> "Today"
+                                    selectedDate == LocalDate.now().plusDays(1) -> "Tomorrow"
+                                    else -> selectedDate.format(DateTimeFormatter.ofPattern("EEEE"))
+                                }
+                                whenTime = selectedTime.format(DateTimeFormatter.ofPattern("h:mm a"))
                                 
                                 // Build trigger points JSON
                                 val triggerPoints = mutableListOf<com.reminder.app.data.TriggerPoint>()
