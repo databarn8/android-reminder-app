@@ -1001,6 +1001,10 @@ fun InputScreen(
                         whenTime = reminder.whenTime ?: ""
                         android.util.Log.d("InputScreen", "Loaded whenDay='$whenDay', whenTime='$whenTime' from database")
                         
+                        // TEST: Just set selectedTime to a fixed time to see if it shows
+                        selectedTime = java.time.LocalTime.of(17, 30) // 5:30 PM for testing
+                        android.util.Log.d("InputScreen", "TEST: Set selectedTime to 5:30 PM to see if it displays")
+                        
                         // Restore selectedDate and selectedTime from reminderTime
                         try {
                             // Always restore date from reminderTime
