@@ -667,15 +667,11 @@ fun TimePickerDialog(
     onTimeSelected: (LocalTime) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var hour by remember { mutableStateOf(selectedTime.hour.toFloat()) }
-    var minute by remember { mutableStateOf(selectedTime.minute.toFloat()) }
+    // Directly use selectedTime values - no separate state needed
+    val hour = remember { derivedStateOf { selectedTime.hour.toFloat() } }
+    val minute = remember { derivedStateOf { selectedTime.minute.toFloat() } }
     
-    // Update dialog values when selectedTime changes
-    LaunchedEffect(selectedTime) {
-        hour = selectedTime.hour.toFloat()
-        minute = selectedTime.minute.toFloat()
-        android.util.Log.d("TimePickerDialog", "Updated dialog to selectedTime=$selectedTime, hour=$hour, minute=$minute")
-    }
+    android.util.Log.d("TimePickerDialog", "Dialog opened with selectedTime=$selectedTime, hour=$hour, minute=$minute")
     
     // Helper functions for time formatting
     fun formatHour(h: Float): String {
