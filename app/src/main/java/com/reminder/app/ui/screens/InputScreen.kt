@@ -1100,16 +1100,18 @@ fun InputScreen(
                         whenDay = freshReminder.whenDay ?: ""
                         whenTime = freshReminder.whenTime ?: ""
                         
-                        // Update date/time fields
-                        try {
-                            val reminderDateTime = java.time.Instant.ofEpochMilli(freshReminder.reminderTime)
-                                .atZone(java.time.ZoneId.systemDefault())
-                                .toLocalDateTime()
-                            selectedDate = reminderDateTime.toLocalDate()
-                            selectedTime = reminderDateTime.toLocalTime()
-                        } catch (e: Exception) {
-                            selectedDate = java.time.LocalDate.now()
-                            selectedTime = java.time.LocalTime.NOON
+                        // Update date/time fields only if not already loaded from database
+                        if (reminderId == null) { // Only for new reminders
+                            try {
+                                val reminderDateTime = java.time.Instant.ofEpochMilli(freshReminder.reminderTime)
+                                    .atZone(java.time.ZoneId.systemDefault())
+                                    .toLocalDateTime()
+                                selectedDate = reminderDateTime.toLocalDate()
+                                selectedTime = reminderDateTime.toLocalTime()
+                            } catch (e: Exception) {
+                                selectedDate = java.time.LocalDate.now()
+                                selectedTime = java.time.LocalTime.NOON
+                            }
                         }
                     }
                 }
