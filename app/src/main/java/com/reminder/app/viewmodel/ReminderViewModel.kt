@@ -60,13 +60,16 @@ class ReminderViewModel(
         viewModelScope.launch {
             try {
                 _isLoading.value = true
+                android.util.Log.d("ReminderViewModel", "Updating reminder in database: id=${reminder.id}, reminderTime=${reminder.reminderTime}, whenDay=${reminder.whenDay}, whenTime=${reminder.whenTime}")
                 repository.updateReminder(reminder)
                 // Cancel old alarm and schedule new one for updated reminder
                 NotificationScheduler.cancelReminder(application, reminder.id)
                 NotificationScheduler.scheduleReminder(application, reminder)
                 _errorMessage.value = null
+                android.util.Log.d("ReminderViewModel", "Successfully updated reminder: id=${reminder.id}")
             } catch (e: Exception) {
                 _errorMessage.value = "Failed to update reminder: ${e.message}"
+                android.util.Log.e("ReminderViewModel", "Error updating reminder: ${e.message}")
             } finally {
                 _isLoading.value = false
             }
@@ -106,7 +109,9 @@ class ReminderViewModel(
     }
 
     suspend fun getReminderById(id: Int): Reminder? {
-        return repository.getReminderById(id)
+        val reminder = repository.getReminderById(id)
+        android.util.Log.d("ReminderViewModel", "Retrieved reminder by id=$id: reminderTime=${reminder?.reminderTime}, whenDay=${reminder?.whenDay}, whenTime=${reminder?.whenTime}")
+        return reminder
     }
 
     fun clearError() {

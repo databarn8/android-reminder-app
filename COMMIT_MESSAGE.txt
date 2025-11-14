@@ -1,0 +1,31 @@
+Fix datetime save issue - update whenDay/whenTime from selectedDate/selectedTime
+
+## Root Cause:
+The issue was a race condition between database updates and data loading when editing reminders. The InputScreen loads data using getReminderById() which could return stale data if the database update hadn't fully committed.
+
+## Files Modified:
+1. InputScreen.kt:985-1080 - Enhanced data loading with:
+   - Added 100ms delay before loading to ensure database operations complete
+   - Added comprehensive logging to track data flow
+   - Added stale data detection mechanism that reloads if timestamps differ
+   - Added 200ms delay before navigation after save to ensure update completion
+
+2. ReminderViewModel.kt:59-74,108-111 - Improved update operations with:
+   - Added detailed logging for update operations
+   - Added logging for data retrieval to track what's being loaded
+   - Enhanced error handling and logging
+
+## Key Improvements:
+1. Race Condition Prevention: Added delays to ensure database operations complete before navigation and data loading
+2. Stale Data Detection: Double-checks loaded data against fresh data and reloads if timestamps differ
+3. Enhanced Logging: Added comprehensive logging throughout the data flow to help debug future issues
+4. Better Error Handling: Improved error reporting and logging
+
+## Data Flow Now:
+1. User clicks edit → Navigation passes reminder ID
+2. InputScreen loads data after 100ms delay
+3. User saves changes → ViewModel updates database
+4. 200ms delay before navigation ensures update completion  
+5. When editing again, InputScreen loads fresh data and validates it's not stale
+
+The fix ensures that the datetime values displayed in the edit screen always match what's shown in the list, eliminating the caching/synchronization issue.

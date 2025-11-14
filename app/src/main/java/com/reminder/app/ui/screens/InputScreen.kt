@@ -987,6 +987,8 @@ fun InputScreen(
         reminderId?.let { id ->
             scope.launch {
                 try {
+                    // Add a small delay to ensure database operations are complete
+                    kotlinx.coroutines.delay(100)
                     val reminder = viewModel.getReminderById(id)
                     if (reminder != null) {
                         loadedReminder = reminder
@@ -1007,9 +1009,44 @@ fun InputScreen(
                             selectedDate = java.time.LocalDate.now()
                             selectedTime = java.time.LocalTime.NOON
                         }
+                        
+                        android.util.Log.d("InputScreen", "Loaded reminder for editing: id=${reminder.id}, reminderTime=${reminder.reminderTime}, whenDay=${reminder.whenDay}, whenTime=${reminder.whenTime}")
                     }
                 } catch (e: Exception) {
-                    // Silent error handling
+                    android.util.Log.e("InputScreen", "Error loading reminder: ${e.message}")
+                }
+            }
+        }
+    }
+    
+    // Reload data when screen becomes visible (handle potential stale data)
+    LaunchedEffect(reminderId, loadedReminder) {
+        reminderId?.let { id ->
+            if (loadedReminder != null) {
+                scope.launch {
+                    // Double-check the data after a short delay to catch any race conditions
+                    kotlinx.coroutines.delay(300)
+                    val freshReminder = viewModel.getReminderById(id)
+                    if (freshReminder != null && freshReminder.reminderTime != loadedReminder.reminderTime) {
+                        android.util.Log.d("InputScreen", "Detected stale data, reloading: old=${loadedReminder.reminderTime}, new=${freshReminder.reminderTime}")
+                        loadedReminder = freshReminder
+                        content = freshReminder.content
+                        selectedPriority = freshReminder.importance
+                        whenDay = freshReminder.whenDay ?: ""
+                        whenTime = freshReminder.whenTime ?: ""
+                        
+                        // Update date/time fields
+                        try {
+                            val reminderDateTime = java.time.Instant.ofEpochMilli(freshReminder.reminderTime)
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .toLocalDateTime()
+                            selectedDate = reminderDateTime.toLocalDate()
+                            selectedTime = reminderDateTime.toLocalTime()
+                        } catch (e: Exception) {
+                            selectedDate = java.time.LocalDate.now()
+                            selectedTime = java.time.LocalTime.NOON
+                        }
+                    }
                 }
             }
         }
@@ -1154,9 +1191,13 @@ fun InputScreen(
                                 if (reminderId != null) {
                                     // Update existing reminder
                                     val updatedReminder = reminder.copy(id = reminderId)
+                                    android.util.Log.d("InputScreen", "Updating reminder: id=${reminderId}, newReminderTime=${reminder.reminderTime}, whenDay=${whenDay}, whenTime=${whenTime}")
                                     viewModel.updateReminder(updatedReminder)
+                                    // Add a small delay before navigating back to ensure database update is complete
+                                    kotlinx.coroutines.delay(200)
                                 } else {
                                     // Add new reminder
+                                    android.util.Log.d("InputScreen", "Adding new reminder: reminderTime=${reminder.reminderTime}, whenDay=${whenDay}, whenTime=${whenTime}")
                                     viewModel.addReminder(reminder)
                                 }
                                 onBack()
