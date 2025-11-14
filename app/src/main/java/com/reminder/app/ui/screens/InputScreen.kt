@@ -670,6 +670,8 @@ fun TimePickerDialog(
     var hour by remember(selectedTime) { mutableStateOf(selectedTime.hour.toFloat()) }
     var minute by remember(selectedTime) { mutableStateOf(selectedTime.minute.toFloat()) }
     
+    android.util.Log.d("TimePickerDialog", "Dialog opened with selectedTime=$selectedTime, hour=$hour, minute=$minute")
+    
     // Helper functions for time formatting
     fun formatHour(h: Float): String {
         val hour24 = h.toInt()
