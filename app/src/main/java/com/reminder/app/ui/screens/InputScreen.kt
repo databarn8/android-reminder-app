@@ -667,8 +667,8 @@ fun TimePickerDialog(
     onTimeSelected: (LocalTime) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var hour by remember { mutableStateOf(selectedTime.hour.toFloat()) }
-    var minute by remember { mutableStateOf(selectedTime.minute.toFloat()) }
+    var hour by remember(selectedTime) { mutableStateOf(selectedTime.hour.toFloat()) }
+    var minute by remember(selectedTime) { mutableStateOf(selectedTime.minute.toFloat()) }
     
     // Helper functions for time formatting
     fun formatHour(h: Float): String {
