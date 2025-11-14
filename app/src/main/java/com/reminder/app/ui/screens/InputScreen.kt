@@ -1139,13 +1139,17 @@ fun InputScreen(
                                     .toInstant()
                                     .toEpochMilli()
                                 
-                                // Update whenDay and whenTime from selectedDate and selectedTime
-                                whenDay = when {
-                                    selectedDate == LocalDate.now() -> "Today"
-                                    selectedDate == LocalDate.now().plusDays(1) -> "Tomorrow"
-                                    else -> selectedDate.format(DateTimeFormatter.ofPattern("EEEE"))
+                                // Only update whenDay and whenTime if they are empty (preserve user input)
+                                if (whenDay.isBlank()) {
+                                    whenDay = when {
+                                        selectedDate == LocalDate.now() -> "Today"
+                                        selectedDate == LocalDate.now().plusDays(1) -> "Tomorrow"
+                                        else -> selectedDate.format(DateTimeFormatter.ofPattern("EEEE"))
+                                    }
                                 }
-                                whenTime = selectedTime.format(DateTimeFormatter.ofPattern("h:mm a"))
+                                if (whenTime.isBlank()) {
+                                    whenTime = selectedTime.format(DateTimeFormatter.ofPattern("h:mm a"))
+                                }
                                 
                                 // Build trigger points JSON
                                 val triggerPoints = mutableListOf<com.reminder.app.data.TriggerPoint>()
