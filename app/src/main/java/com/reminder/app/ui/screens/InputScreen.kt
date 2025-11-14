@@ -1009,54 +1009,59 @@ fun InputScreen(
                                 .toLocalDateTime()
                             selectedDate = reminderDateTime.toLocalDate()
                             
-                            // Try to parse whenTime if it exists, otherwise use reminderTime
-                            if (!reminder.whenTime.isNullOrBlank()) {
-                                android.util.Log.d("InputScreen", "Attempting to parse whenTime: '${reminder.whenTime}'")
-                                
-                                // Try multiple time formats
-                                val timeFormats = listOf(
-                                    Regex("(\\d{1,2}):(\\d{2})\\s*(am|pm)", RegexOption.IGNORE_CASE),  // 3:30pm, 11:45 am
-                                    Regex("(\\d{1,2})\\s*(am|pm)", RegexOption.IGNORE_CASE),           // 3pm, 11 am
-                                    Regex("(\\d{1,2}):(\\d{2})"),                                   // 15:30, 09:45
-                                    Regex("(\\d{1,2})")                                              // 15, 9
-                                )
-                                
-                                var parsed = false
-                                for (format in timeFormats) {
-                                    val match = format.find(reminder.whenTime)
+                        // Try to parse whenTime if it exists, otherwise use reminderTime
+                        if (!reminder.whenTime.isNullOrBlank()) {
+                            android.util.Log.d("InputScreen", "Attempting to parse whenTime: '${reminder.whenTime}'")
+                            
+                            // Simple test: just try to parse common formats
+                            val whenTimeLower = reminder.whenTime.lowercase().trim()
+                            selectedTime = when {
+                                whenTimeLower.contains("am") || whenTimeLower.contains("pm") -> {
+                                    // Handle "3pm", "3:30pm", "10:15 am"
+                                    val timePattern = Regex("(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)")
+                                    val match = timePattern.find(whenTimeLower)
                                     if (match != null) {
-                                        try {
-                                            val hour = match.groupValues[1].toInt()
-                                            val minute = match.groupValues.getOrNull(2)?.toInt() ?: 0
-                                            val ampm = match.groupValues.getOrNull(3)?.lowercase()
-                                            
-                                            val parsedHour = when {
-                                                ampm == "am" -> if (hour == 12) 0 else hour
-                                                ampm == "pm" -> if (hour == 12) 12 else hour + 12
-                                                hour > 12 -> hour // Already 24-hour format
-                                                else -> if (hour <= 12 && ampm == null && hour != 12) hour + 12 else hour
-                                            }
-                                            
-                                            selectedTime = java.time.LocalTime.of(parsedHour.coerceIn(0, 23), minute.coerceIn(0, 59))
-                                            android.util.Log.d("InputScreen", "Successfully parsed selectedTime='$selectedTime' from whenTime='${reminder.whenTime}'")
-                                            parsed = true
-                                            break
-                                        } catch (e: Exception) {
-                                            android.util.Log.d("InputScreen", "Failed to parse with format: ${e.message}")
-                                            continue
+                                        val hour = match.groupValues[1].toInt()
+                                        val minute = match.groupValues[2].takeIf { it.isNotBlank() }?.toInt() ?: 0
+                                        val ampm = match.groupValues[3]
+                                        val parsedHour = if (ampm == "am") {
+                                            if (hour == 12) 0 else hour
+                                        } else {
+                                            if (hour == 12) 12 else hour + 12
                                         }
+                                        java.time.LocalTime.of(parsedHour, minute)
+                                    } else {
+                                        java.time.LocalTime.NOON
                                     }
                                 }
-                                
-                                if (!parsed) {
-                                    android.util.Log.d("InputScreen", "Could not parse whenTime, using reminderTime")
-                                    selectedTime = reminderDateTime.toLocalTime()
+                                whenTimeLower.contains(":") -> {
+                                    // Handle "15:30", "09:45"
+                                    val parts = whenTimeLower.split(":")
+                                    if (parts.size == 2) {
+                                        val hour = parts[0].toIntOrNull() ?: 12
+                                        val minute = parts[1].toIntOrNull() ?: 0
+                                        java.time.LocalTime.of(hour.coerceIn(0, 23), minute.coerceIn(0, 59))
+                                    } else {
+                                        java.time.LocalTime.NOON
+                                    }
                                 }
-                            } else {
-                                // No whenTime saved, use reminderTime
-                                selectedTime = reminderDateTime.toLocalTime()
-                                android.util.Log.d("InputScreen", "No whenTime saved, using selectedTime='$selectedTime' from reminderTime")
+                                else -> {
+                                    // Handle simple numbers like "5", "15"
+                                    val hour = whenTimeLower.toIntOrNull()
+                                    if (hour != null) {
+                                        java.time.LocalTime.of(hour.coerceIn(0, 23), 0)
+                                    } else {
+                                        java.time.LocalTime.NOON
+                                    }
+                                }
                             }
+                            
+                            android.util.Log.d("InputScreen", "Parsed selectedTime='$selectedTime' from whenTime='${reminder.whenTime}'")
+                        } else {
+                            // No whenTime saved, use reminderTime
+                            selectedTime = reminderDateTime.toLocalTime()
+                            android.util.Log.d("InputScreen", "No whenTime saved, using selectedTime='$selectedTime' from reminderTime")
+                        }
                             
                         } catch (e: Exception) {
                             // Fallback to current date/time if parsing fails
