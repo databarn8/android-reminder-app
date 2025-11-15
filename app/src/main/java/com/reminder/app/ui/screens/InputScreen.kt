@@ -45,40 +45,6 @@ import kotlinx.coroutines.launch
 
 // Enhanced extraction functions for common reminder patterns
 
-// Helper function to format time for content display
-fun formatTimeForContent(time: LocalTime): String {
-    return when {
-        time.minute == 0 -> "${time.hour % 12}pm"
-        else -> "${time.hour % 12}:${String.format("%02d", time.minute)}pm"
-    }
-}
-
-// Helper function to format date for content display  
-fun formatDateForContent(date: LocalDate): String {
-    val today = LocalDate.now()
-    return when {
-        date.isEqual(today) -> "Today"
-        date.isEqual(today.plusDays(1)) -> "Tomorrow" 
-        date.isEqual(today.plusDays(-1)) -> "Yesterday"
-        else -> date.format(DateTimeFormatter.ofPattern("MMM dd"))
-    }
-}
-
-// Helper function to merge time/date into content
-fun mergeTimeDateIntoContent(content: String, time: LocalTime?, date: LocalDate?): String {
-    val timeStr = time?.let { formatTimeForContent(it) }
-    val dateStr = date?.let { formatDateForContent(it) }
-    
-    return when {
-        timeStr != null && dateStr != null -> "$timeStr $dateStr - $content"
-        timeStr != null -> "$timeStr - $content"  
-        dateStr != null -> "$dateStr - $content"
-        else -> content
-    }
-}
-
-// Enhanced extraction functions for common reminder patterns
-
 fun extractCategory(text: String): String {
     return when {
         text.contains("work", ignoreCase = true) || text.contains("meeting", ignoreCase = true) || 
@@ -701,11 +667,8 @@ fun TimePickerDialog(
     onTimeSelected: (LocalTime) -> Unit,
     onDismiss: () -> Unit
 ) {
-    // Directly use selectedTime values - no separate state needed
-    val hour = remember { derivedStateOf { selectedTime.hour.toFloat() } }
-    val minute = remember { derivedStateOf { selectedTime.minute.toFloat() } }
-    
-    android.util.Log.d("TimePickerDialog", "Dialog opened with selectedTime=$selectedTime, hour=$hour, minute=$minute")
+    var hour by remember { mutableStateOf(selectedTime.hour.toFloat()) }
+    var minute by remember { mutableStateOf(selectedTime.minute.toFloat()) }
     
     // Helper functions for time formatting
     fun formatHour(h: Float): String {
@@ -1019,49 +982,6 @@ fun InputScreen(
         8 to "High", 9 to "Very High", 10 to "Urgent"
     )
     
-    // Simple function to parse time strings like "5pm", "3:30pm", "10am"
-    fun parseTimeString(timeStr: String): LocalTime {
-        val cleanTime = timeStr.lowercase().trim()
-        
-        // Handle "5pm", "3:30pm", "10:15 am"
-        if (cleanTime.contains("am") || cleanTime.contains("pm")) {
-            val timePattern = Regex("(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)")
-            val match = timePattern.find(cleanTime)
-            if (match != null) {
-                val hour = match.groupValues[1].toInt()
-                val minute = match.groupValues[2].takeIf { it.isNotBlank() }?.toInt() ?: 0
-                val ampm = match.groupValues[3]
-                val parsedHour = if (ampm == "am") {
-                    if (hour == 12) 0 else hour
-                } else {
-                    if (hour == 12) 12 else hour + 12
-                }
-                return LocalTime.of(parsedHour, minute)
-            }
-        }
-        
-        // Handle "15:30", "09:45" (24-hour format)
-        if (cleanTime.contains(":")) {
-            val parts = cleanTime.split(":")
-            if (parts.size == 2) {
-                val hour = parts[0].toIntOrNull()
-                val minute = parts[1].toIntOrNull()
-                if (hour != null && minute != null) {
-                    return LocalTime.of(hour.coerceIn(0, 23), minute.coerceIn(0, 59))
-                }
-            }
-        }
-        
-        // Handle simple numbers like "5", "15"
-        val hour = cleanTime.toIntOrNull()
-        if (hour != null) {
-            return LocalTime.of(hour.coerceIn(0, 23), 0)
-        }
-        
-        // Fallback to noon
-        return LocalTime.NOON
-    }
-
     // Load existing reminder data if editing
     LaunchedEffect(reminderId) {
         reminderId?.let { id ->
@@ -1075,29 +995,25 @@ fun InputScreen(
                         whenDay = reminder.whenDay ?: ""
                         whenTime = reminder.whenTime ?: ""
                         
-                        // Load date from reminderTime
-                        val reminderDateTime = java.time.Instant.ofEpochMilli(reminder.reminderTime)
-                            .atZone(java.time.ZoneId.systemDefault())
-                            .toLocalDateTime()
-                        selectedDate = reminderDateTime.toLocalDate()
-                        
-                        // Load time - prioritize whenTime, fallback to reminderTime
-                        selectedTime = if (!reminder.whenTime.isNullOrBlank()) {
-                            parseTimeString(reminder.whenTime)
-                        } else {
-                            reminderDateTime.toLocalTime()
+                        // Restore selectedDate and selectedTime from reminderTime
+                        try {
+                            val reminderDateTime = java.time.Instant.ofEpochMilli(reminder.reminderTime)
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .toLocalDateTime()
+                            selectedDate = reminderDateTime.toLocalDate()
+                            selectedTime = reminderDateTime.toLocalTime()
+                        } catch (e: Exception) {
+                            // Fallback to current date/time if parsing fails
+                            selectedDate = java.time.LocalDate.now()
+                            selectedTime = java.time.LocalTime.NOON
                         }
-                        
-                        android.util.Log.d("InputScreen", "Loaded reminder: whenTime='${reminder.whenTime}' -> selectedTime='$selectedTime'")
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e("InputScreen", "Error loading reminder: ${e.message}")
+                    // Silent error handling
                 }
             }
         }
     }
-    
-
     
     // Speech states
     val isListening by speechManager.isListening.collectAsState()
@@ -1186,17 +1102,13 @@ fun InputScreen(
                                     .toInstant()
                                     .toEpochMilli()
                                 
-                                // Only update whenDay and whenTime if they are empty (preserve user input)
-                                if (whenDay.isBlank()) {
-                                    whenDay = when {
-                                        selectedDate == LocalDate.now() -> "Today"
-                                        selectedDate == LocalDate.now().plusDays(1) -> "Tomorrow"
-                                        else -> selectedDate.format(DateTimeFormatter.ofPattern("EEEE"))
-                                    }
+                                // Update whenDay and whenTime from selectedDate and selectedTime
+                                whenDay = when {
+                                    selectedDate == LocalDate.now() -> "Today"
+                                    selectedDate == LocalDate.now().plusDays(1) -> "Tomorrow"
+                                    else -> selectedDate.format(DateTimeFormatter.ofPattern("EEEE"))
                                 }
-                                if (whenTime.isBlank()) {
-                                    whenTime = selectedTime.format(DateTimeFormatter.ofPattern("h:mm a"))
-                                }
+                                whenTime = selectedTime.format(DateTimeFormatter.ofPattern("h:mm a"))
                                 
                                 // Build trigger points JSON
                                 val triggerPoints = mutableListOf<com.reminder.app.data.TriggerPoint>()
@@ -1210,8 +1122,7 @@ fun InputScreen(
                                     triggerPoints.add(com.reminder.app.data.TriggerType.HOURS_BEFORE, hoursBeforeValue))
                                 }
                                 if (enableDaysBefore) {
-                                    triggerPoints.add(com.reminder.app.data.TriggerType.DAYS_BEFORE, daysBeforeValue)
-                                }
+                                    triggerPoints.add(com.reminder.app.data.TriggerType.DAYS_BEFORE, daysBeforeValue))
                                 }
                                 
                                 // Convert to JSON
@@ -1228,17 +1139,14 @@ fun InputScreen(
                                     }
                                 }.toString()
                                 
-                                // Merge time/date into content for proper display
-                                val mergedContent = mergeTimeDateIntoContent(content, selectedTime, selectedDate)
-                                
                                 val reminder = com.reminder.app.data.Reminder(
-                                    content = mergedContent,
-                                    category = extractCategory(mergedContent),
+                                    content = content,
+                                    category = extractCategory(content),
                                     importance = selectedPriority,
                                     reminderTime = reminderTimeMillis,
                                     whenDay = whenDay.ifBlank { null },
                                     whenTime = whenTime.ifBlank { null },
-                                    voiceInput = mergedContent,
+                                    voiceInput = content,
                                     isProcessed = true,
                                     triggerPoints = triggerPointsJson
                                 )
@@ -1246,13 +1154,9 @@ fun InputScreen(
                                 if (reminderId != null) {
                                     // Update existing reminder
                                     val updatedReminder = reminder.copy(id = reminderId)
-                                    android.util.Log.d("InputScreen", "Updating reminder: id=${reminderId}, newReminderTime=${reminder.reminderTime}, whenDay=${whenDay}, whenTime=${whenTime}")
                                     viewModel.updateReminder(updatedReminder)
-                                    // Add a small delay before navigating back to ensure database update is complete
-                                    kotlinx.coroutines.delay(200)
                                 } else {
                                     // Add new reminder
-                                    android.util.Log.d("InputScreen", "Adding new reminder: reminderTime=${reminder.reminderTime}, whenDay=${whenDay}, whenTime=${whenTime}")
                                     viewModel.addReminder(reminder)
                                 }
                                 onBack()
@@ -1414,8 +1318,21 @@ fun InputScreen(
                                         whenTime = suggestion
                                         showTimeSuggestions = false
                                         
-                                        // Use our consistent time parsing function
-                                        selectedTime = parseTimeString(suggestion)
+                                        // Parse and update selected time if it's a specific time
+                                        val timePattern = Regex("(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?", RegexOption.IGNORE_CASE)
+                                        val match = timePattern.find(suggestion)
+                                        if (match != null) {
+                                            val hour = match.groupValues[1].toInt()
+                                            val minute = match.groupValues[2].takeIf { it.isNotBlank() }?.toInt() ?: 0
+                                            val ampm = match.groupValues[3].lowercase()
+                                            
+                                            val parsedHour = when {
+                                                ampm == "am" -> if (hour == 12) 0 else hour
+                                                ampm == "pm" -> if (hour == 12) 12 else hour + 12
+                                                else -> hour
+                                            }
+                                            selectedTime = LocalTime.of(parsedHour, minute)
+                                        }
                                     }
                                 )
                             }
@@ -1747,13 +1664,11 @@ fun InputScreen(
             selectedDate = selectedDate,
             onDateSelected = { date ->
                 selectedDate = date
-                // Only update whenDay if it's currently blank (preserve user input)
-                if (whenDay.isBlank()) {
-                    whenDay = when {
-                        date == LocalDate.now() -> "Today"
-                        date == LocalDate.now().plusDays(1) -> "Tomorrow"
-                        else -> date.format(DateTimeFormatter.ofPattern("EEEE"))
-                    }
+                // Update whenDay field for compatibility
+                whenDay = when {
+                    date == LocalDate.now() -> "Today"
+                    date == LocalDate.now().plusDays(1) -> "Tomorrow"
+                    else -> date.format(DateTimeFormatter.ofPattern("EEEE"))
                 }
             },
             onDismiss = { showDatePicker = false }
@@ -1766,10 +1681,8 @@ fun InputScreen(
             selectedTime = selectedTime,
             onTimeSelected = { time ->
                 selectedTime = time
-                // Only update whenTime if it's currently blank (preserve user input)
-                if (whenTime.isBlank()) {
-                    whenTime = time.format(DateTimeFormatter.ofPattern("h:mm a"))
-                }
+                // Update whenTime field for compatibility
+                whenTime = time.format(DateTimeFormatter.ofPattern("h:mm a"))
             },
             onDismiss = { showTimePicker = false }
         )
