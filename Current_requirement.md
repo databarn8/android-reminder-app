@@ -83,9 +83,9 @@ git checkout -b hotfix-server-down-2025-11-15-1645
 - CalendarScreen.kt missing Compose foundation imports
 - AlarmActivity.kt has missing property references
 
-## Current Issue - Partial Fix Status
-**Datetime Save Fix Status**: PARTIALLY WORKING ✅❌
+## Current Issues
 
+### 1. Datetime Save Fix Status: PARTIALLY WORKING ✅❌
 ✅ **Working**: 
 - Saves new datetime values correctly
 - Preserves existing data (doesn't lose it)
@@ -97,6 +97,17 @@ git checkout -b hotfix-server-down-2025-11-15-1645
 - User can't see what datetime is currently set
 
 **Root Cause**: Display/loading issue in InputScreen.kt - data loads but doesn't populate UI fields properly
+
+### 2. Fresh Button Feature: IMPLEMENTED ✅
+✅ **Working**: 
+- Fresh button (🔄 Fresh) added to ReminderListScreen top bar
+- Triggers 12-second yellow screen flash when clicked
+- Uses ScreenFlashManager with flashDurationMs = 12000
+- Proper logging for button click tracking
+- Positioned between Test flash and Search buttons
+
+**Branch**: `work-fresh-button-yellow-flash-2025-11-15-1103`
+**Status**: Ready for testing on device
 
 ## Next Steps
 - Fix datetime display/loading in edit screen to show existing values
