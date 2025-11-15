@@ -522,9 +522,9 @@ fun DatePickerDialog(
                     )
                 }
                 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 
-                // Quick Date Selection Buttons
+                // Quick Date Selection Buttons (more compact)
                 Text(
                     text = "Quick Select",
                     style = MaterialTheme.typography.titleSmall,
@@ -945,14 +945,14 @@ fun InputScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
-                    // Single content field - supports both typing and voice
+                    // Single content field - supports both typing and voice (more compact)
                     OutlinedTextField(
                         value = content,
                         onValueChange = { content = it },
                         label = { Text("What do you need to remember?") },
                         modifier = Modifier.fillMaxWidth(),
-                        maxLines = 4,
-                        placeholder = { Text("e.g., Call mom tomorrow at 3pm or Buy groceries after work") }
+                        maxLines = 3,
+                        placeholder = { Text("e.g., Call mom at 3pm") }
                     )
                     
                     // Priority selection (moved to main content)
@@ -969,58 +969,58 @@ fun InputScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         
-                        // Priority Level Slider with Plus/Minus buttons
+                        // Priority Level Slider with Plus/Minus buttons (above tab to speak)
                         Row(
                             modifier = Modifier.weight(1f),
-                            horizontalArrangement = Arrangement.Center,
+                            horizontalArrangement = Arrangement.SpaceBy(2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Minus button
+                            // Minus button (left side)
                             IconButton(
                                 onClick = {
                                     if (selectedPriority > 1) {
                                         selectedPriority--
                                     }
                                 },
-                                modifier = Modifier.size(32.dp),
+                                modifier = Modifier.size(28.dp),
                                 enabled = selectedPriority > 1
                             ) {
                                 Icon(
                                     Icons.Default.Remove,
                                     contentDescription = "Decrease priority",
                                     tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(14.dp)
                                 )
                             }
                             
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             
-                            // Priority value display
+                            // Priority value display (center)
                             Text(
                                 text = "$selectedPriority",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(32.dp)
                             )
                             
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             
-                            // Plus button
+                            // Plus button (right side)
                             IconButton(
                                 onClick = {
                                     if (selectedPriority < 10) {
                                         selectedPriority++
                                     }
                                 },
-                                modifier = Modifier.size(32.dp),
+                                modifier = Modifier.size(28.dp),
                                 enabled = selectedPriority < 10
                             ) {
                                 Icon(
                                     Icons.Default.Add,
                                     contentDescription = "Increase priority",
                                     tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(14.dp)
                                 )
                             }
                         }
@@ -1355,7 +1355,7 @@ fun InputScreen(
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
-                    // Modern Date Picker
+                // Modern Date Picker (more compact)
                     OutlinedCard(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1364,6 +1364,10 @@ fun InputScreen(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant
                         )
                     ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
