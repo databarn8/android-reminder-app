@@ -41,6 +41,8 @@ import android.util.Log
 import com.reminder.app.utils.SpeechManager
 import com.reminder.app.utils.SmartVoiceProcessor
 import com.reminder.app.viewmodel.ReminderViewModel
+import com.reminder.app.data.Reminder
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 // Enhanced extraction functions for common reminder patterns
@@ -48,916 +50,189 @@ import kotlinx.coroutines.launch
 // Helper function to format time for content display
 fun formatTimeForContent(time: LocalTime): String {
     return when {
-        time.minute == 0 -> "${time.hour % 12}pm"
-        else -> "${time.hour % 12}:${String.format("%02d", time.minute)}pm"
+        time.hour == 0 && time.minute == 0 -> "midnight"
+        time.hour == 12 && time.minute == 0 -> "noon"
+        time.minute == 0 -> "${time.hour} o'clock"
+        time.minute < 10 -> "${time.hour}:0${time.minute}"
+        else -> "${time.hour}:${time.minute}"
     }
 }
 
-// Helper function to format date for content display  
+// Helper function to format date for content display
 fun formatDateForContent(date: LocalDate): String {
     val today = LocalDate.now()
     return when {
-        date.isEqual(today) -> "Today"
-        date.isEqual(today.plusDays(1)) -> "Tomorrow" 
-        date.isEqual(today.plusDays(-1)) -> "Yesterday"
-        else -> date.format(DateTimeFormatter.ofPattern("MMM dd"))
+        date.isEqual(today) -> "today"
+        date.isEqual(today.plusDays(1)) -> "tomorrow"
+        date.isEqual(today.minusDays(1)) -> "yesterday"
+        date.year == today.year -> date.format(DateTimeFormatter.ofPattern("MMM d"))
+        else -> date.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))
     }
 }
 
-// Helper function to merge time/date into content
-fun mergeTimeDateIntoContent(content: String, time: LocalTime?, date: LocalDate?): String {
-    val timeStr = time?.let { formatTimeForContent(it) }
-    val dateStr = date?.let { formatDateForContent(it) }
+// Enhanced day extraction with more patterns
+fun extractDay(content: String): String {
+    val lowerContent = content.lowercase()
     
-    return when {
-        timeStr != null && dateStr != null -> "$timeStr $dateStr - $content"
-        timeStr != null -> "$timeStr - $content"  
-        dateStr != null -> "$dateStr - $content"
-        else -> content
-    }
-}
-
-// Enhanced extraction functions for common reminder patterns
-
-fun extractCategory(text: String): String {
-    return when {
-        text.contains("work", ignoreCase = true) || text.contains("meeting", ignoreCase = true) || 
-        text.contains("office", ignoreCase = true) || text.contains("client", ignoreCase = true) -> "Work"
-        text.contains("family", ignoreCase = true) || text.contains("mom", ignoreCase = true) || 
-        text.contains("dad", ignoreCase = true) || text.contains("kids", ignoreCase = true) -> "Family"
-        text.contains("buy", ignoreCase = true) || text.contains("store", ignoreCase = true) || 
-        text.contains("shop", ignoreCase = true) || text.contains("grocery", ignoreCase = true) -> "Shopping"
-        text.contains("doctor", ignoreCase = true) || text.contains("appointment", ignoreCase = true) || 
-        text.contains("health", ignoreCase = true) -> "Health"
-        text.contains("call", ignoreCase = true) || text.contains("email", ignoreCase = true) || 
-        text.contains("text", ignoreCase = true) -> "Communication"
-        else -> "Personal"
-    }
-}
-
-fun extractTime(text: String): String {
-    return when {
-        text.contains("today", ignoreCase = true) -> {
-            when {
-                text.contains("morning", ignoreCase = true) -> "Today Morning"
-                text.contains("afternoon", ignoreCase = true) -> "Today Afternoon"
-                text.contains("evening", ignoreCase = true) -> "Today Evening"
-                text.contains("night", ignoreCase = true) -> "Tonight"
-                else -> "Today"
-            }
-        }
-        text.contains("tomorrow", ignoreCase = true) -> {
-            when {
-                text.contains("morning", ignoreCase = true) -> "Tomorrow Morning"
-                text.contains("afternoon", ignoreCase = true) -> "Tomorrow Afternoon"
-                text.contains("evening", ignoreCase = true) -> "Tomorrow Evening"
-                text.contains("night", ignoreCase = true) -> "Tomorrow Night"
-                else -> "Tomorrow"
-            }
-        }
-        text.contains("next week", ignoreCase = true) -> "Next Week"
-        text.contains("monday", ignoreCase = true) -> "Monday"
-        text.contains("tuesday", ignoreCase = true) -> "Tuesday"
-        text.contains("wednesday", ignoreCase = true) -> "Wednesday"
-        text.contains("thursday", ignoreCase = true) -> "Thursday"
-        text.contains("friday", ignoreCase = true) -> "Friday"
-        text.contains("saturday", ignoreCase = true) -> "Saturday"
-        text.contains("sunday", ignoreCase = true) -> "Sunday"
-        text.contains("morning", ignoreCase = true) -> "Morning"
-        text.contains("afternoon", ignoreCase = true) -> "Afternoon"
-        text.contains("evening", ignoreCase = true) -> "Evening"
-        text.contains("night", ignoreCase = true) -> "Night"
-        else -> ""
-    }
-}
-
-fun extractDay(text: String): String {
-    val lowerText = text.lowercase()
-    return when {
-        lowerText.contains("today") -> "Today"
-        lowerText.contains("tomorrow") -> "Tomorrow"
-        lowerText.contains("monday") -> "Monday"
-        lowerText.contains("tuesday") -> "Tuesday"
-        lowerText.contains("wednesday") -> "Wednesday"
-        lowerText.contains("thursday") -> "Thursday"
-        lowerText.contains("friday") -> "Friday"
-        lowerText.contains("saturday") -> "Saturday"
-        lowerText.contains("sunday") -> "Sunday"
-        lowerText.contains("next week") -> "Next Week"
-        else -> ""
-    }
-}
-
-fun extractTimeOnly(text: String): String {
-    val timePatterns = listOf(
-        Regex("(\\d{1,2})\\s*[:\\.]?\\s*\\d{0,2}\\s*(a\\.?m\\.?|p\\.?m\\.?)", RegexOption.IGNORE_CASE),
-        Regex("(\\d{1,2})\\s*(am|pm)", RegexOption.IGNORE_CASE),
-        Regex("(\\d{1,2}):(\\d{2})\\s*(am|pm)", RegexOption.IGNORE_CASE),
-        Regex("(\\d{1,2})\\s*o'clock", RegexOption.IGNORE_CASE)
+    // Direct day mentions
+    val directDays = mapOf(
+        "today" to "Today",
+        "tomorrow" to "Tomorrow", 
+        "yesterday" to "Yesterday",
+        "monday" to "Monday",
+        "tuesday" to "Tuesday",
+        "wednesday" to "Wednesday",
+        "thursday" to "Thursday",
+        "friday" to "Friday",
+        "saturday" to "Saturday",
+        "sunday" to "Sunday"
     )
     
-    for (pattern in timePatterns) {
-        val match = pattern.find(text)
-        if (match != null) {
-            val timeText = match.value.lowercase()
-                .replace(".", "")
-                .replace(" ", "")
-                .trim()
-            Log.d("TimeExtraction", "Found time: '$timeText' in text: '$text'")
-            return timeText
-        }
+    for ((pattern, day) in directDays) {
+        if (pattern in lowerContent) return day
     }
     
-    Log.d("TimeExtraction", "No time found in text: '$text'")
+    // Relative day patterns
+    when {
+        "next week" in lowerContent -> {
+            val today = LocalDate.now()
+            val nextWeek = today.plusDays(7)
+            return nextWeek.format(DateTimeFormatter.ofPattern("EEEE"))
+        }
+        "next monday" in lowerContent -> "Monday"
+        "next tuesday" in lowerContent -> "Tuesday"
+        "next wednesday" in lowerContent -> "Wednesday"
+        "next thursday" in lowerContent -> "Thursday"
+        "next friday" in lowerContent -> "Friday"
+        "next saturday" in lowerContent -> "Saturday"
+        "next sunday" in lowerContent -> "Sunday"
+    }
+    
     return ""
 }
 
-fun extractPriority(text: String): String {
-    return when {
-        text.contains("urgent", ignoreCase = true) || text.contains("asap", ignoreCase = true) || 
-        text.contains("important", ignoreCase = true) -> "High"
-        text.contains("sometime", ignoreCase = true) || text.contains("when possible", ignoreCase = true) -> "Low"
-        else -> "Medium"
-    }
-}
-
-fun calculateReminderTime(text: String): Long {
-    val now = System.currentTimeMillis()
-    val oneDay = 24 * 60 * 60 * 1000L
-    val oneHour = 60 * 60 * 1000L
-    val calendar = java.util.Calendar.getInstance()
+// Enhanced time extraction with more patterns
+fun extractTimeOnly(content: String): String {
+    val lowerContent = content.lowercase()
     
-    // Extract specific time like "3pm", "3:00", etc.
-    val timePattern = Regex("(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?", RegexOption.IGNORE_CASE)
-    val timeMatch = timePattern.find(text)
+    // Direct time patterns
+    val timeRegex = Regex("""(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?""")
+    val matches = timeRegex.findAll(lowerContent)
     
-    var targetHour = -1
-    var targetMinute = 0
-    
-    if (timeMatch != null) {
-        val hour = timeMatch.groupValues[1].toInt()
-        val minute = timeMatch.groupValues[2].takeIf { it.isNotBlank() }?.toInt() ?: 0
-        val ampm = timeMatch.groupValues[3].lowercase()
+    for (match in matches) {
+        val hour = match.groupValues[1].toIntOrNull()
+        val minute = match.groupValues[2].toIntOrNull() ?: 0
+        val period = match.groupValues[3].lowercase()
         
-        targetHour = when {
-            ampm == "am" -> if (hour == 12) 0 else hour
-            ampm == "pm" -> if (hour == 12) 12 else hour + 12
-            hour <= 12 -> hour // Default to AM for single digit hours
-            else -> hour
-        }
-        targetMinute = minute
-    }
-    
-    // Calculate base time (day offset)
-    val baseTime = when {
-        text.contains("today", ignoreCase = true) -> now
-        text.contains("tomorrow", ignoreCase = true) -> now + oneDay
-        text.contains("next week", ignoreCase = true) -> now + 7 * oneDay
-        text.contains("monday", ignoreCase = true) -> now + getDaysUntilDayOfWeek(1) * oneDay
-        text.contains("tuesday", ignoreCase = true) -> now + getDaysUntilDayOfWeek(2) * oneDay
-        text.contains("wednesday", ignoreCase = true) -> now + getDaysUntilDayOfWeek(3) * oneDay
-        text.contains("thursday", ignoreCase = true) -> now + getDaysUntilDayOfWeek(4) * oneDay
-        text.contains("friday", ignoreCase = true) -> now + getDaysUntilDayOfWeek(5) * oneDay
-        text.contains("saturday", ignoreCase = true) -> now + getDaysUntilDayOfWeek(6) * oneDay
-        text.contains("sunday", ignoreCase = true) -> now + getDaysUntilDayOfWeek(7) * oneDay
-        else -> now + oneDay // Default to tomorrow
-    }
-    
-    // If we have a specific time, set it
-    return if (targetHour != -1) {
-        val targetCalendar = java.util.Calendar.getInstance()
-        targetCalendar.timeInMillis = baseTime
-        targetCalendar.set(java.util.Calendar.HOUR_OF_DAY, targetHour)
-        targetCalendar.set(java.util.Calendar.MINUTE, targetMinute)
-        targetCalendar.set(java.util.Calendar.SECOND, 0)
-        targetCalendar.set(java.util.Calendar.MILLISECOND, 0)
-        
-        // If the time is in the past for today, move to tomorrow
-        if (text.contains("today", ignoreCase = true) && targetCalendar.timeInMillis <= now) {
-            targetCalendar.add(java.util.Calendar.DAY_OF_MONTH, 1)
-        }
-        
-        targetCalendar.timeInMillis
-    } else {
-        // Use time-of-day defaults if no specific time
-        when {
-            text.contains("morning", ignoreCase = true) -> baseTime + 9 * oneHour
-            text.contains("afternoon", ignoreCase = true) -> baseTime + 14 * oneHour
-            text.contains("evening", ignoreCase = true) -> baseTime + 18 * oneHour
-            text.contains("night", ignoreCase = true) -> baseTime + 20 * oneHour
-            else -> baseTime + 12 * oneHour // Default to noon
+        if (hour != null && hour in 0..23) {
+            val displayHour = when {
+                period.contains("p") && hour < 12 -> hour + 12
+                period.contains("a") && hour == 12 -> 0
+                else -> hour
+            }
+            
+            val time = LocalTime.of(displayHour % 24, minute)
+            return time.format(DateTimeFormatter.ofPattern("h:mm a"))
         }
     }
+    
+    // Common time expressions
+    when {
+        "noon" in lowerContent -> "12:00 PM"
+        "midnight" in lowerContent -> "12:00 AM"
+        "morning" in lowerContent -> "9:00 AM"
+        "afternoon" in lowerContent -> "2:00 PM"
+        "evening" in lowerContent -> "6:00 PM"
+        "night" in lowerContent -> "8:00 PM"
+    }
+    
+    return ""
 }
 
-fun getDaysUntilDayOfWeek(targetDay: Int): Int {
-    val calendar = java.util.Calendar.getInstance()
-    val currentDay = calendar.get(java.util.Calendar.DAY_OF_WEEK)
-    val daysUntil = if (targetDay >= currentDay) targetDay - currentDay else 7 - (currentDay - targetDay)
-    return if (daysUntil == 0) 7 else daysUntil // If today, schedule for next week
-}
+// Quick date suggestions
+val quickDates = listOf("Today", "Tomorrow", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
-// Compact Slider Date Picker Dialog Component
+// Quick time suggestions
+val quickTimes = listOf("9:00 AM", "12:00 PM", "3:00 PM", "6:00 PM", "8:00 PM")
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DatePickerDialog(
-    selectedDate: LocalDate,
+    initialDate: LocalDate,
     onDateSelected: (LocalDate) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val today = LocalDate.now()
-    var tempYear by remember { mutableStateOf(selectedDate.year.toFloat()) }
-    var tempMonth by remember { mutableStateOf((selectedDate.monthValue - 1).toFloat()) } // 0-based
-    var tempDay by remember { mutableStateOf(selectedDate.dayOfMonth.toFloat()) }
-    
-    // Helper functions for date formatting
-    fun formatMonth(month: Float): String {
-        return java.time.Month.of((month.toInt() + 1)).name.take(3)
-    }
-    
-    fun formatDate(y: Float, m: Float, d: Float): String {
-        val year = y.toInt()
-        val month = java.time.Month.of((m.toInt() + 1)).name.take(3)
-        val day = d.toInt()
-        return "$month $day, $year"
-    }
-    
-    // Get max days for current month/year
-    fun getMaxDays(): Int {
-        return try {
-            val year = tempYear.toInt()
-            val month = tempMonth.toInt() + 1
-            LocalDate.of(year, month, 1).lengthOfMonth()
-        } catch (e: Exception) {
-            31
-        }
-    }
+    var selectedDate by remember { mutableStateOf(initialDate) }
     
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
             Column(
-                modifier = Modifier.padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier.padding(16.dp)
             ) {
-                // Title with current date preview
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(bottom = 20.dp)
-                ) {
-                    Text(
-                        text = "📅 Select Date",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    
-                    Spacer(modifier = Modifier.height(6.dp))
-                    
-                    // Compact date display
-                    Text(
-                        text = formatDate(tempYear, tempMonth, tempDay),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                
-                // Year with +/- buttons
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Year",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = { 
-                                val newYear = (tempYear - 1).coerceAtLeast(today.year - 5f)
-                                tempYear = newYear
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Text(
-                                text = "−",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        
-                        Slider(
-                            value = tempYear,
-                            onValueChange = { tempYear = it },
-                            valueRange = (today.year - 5).toFloat()..(today.year + 10).toFloat(),
-                            steps = 14,
-                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.primary,
-                                activeTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                                inactiveTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                            )
-                        )
-                        
-                        IconButton(
-                            onClick = { 
-                                val newYear = (tempYear + 1).coerceAtMost(today.year + 10f)
-                                tempYear = newYear
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Text(
-                                text = "+",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                    
-                    Text(
-                        text = "${tempYear.toInt()}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Month with +/- buttons
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Month",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = { 
-                                val newMonth = if (tempMonth > 0) tempMonth - 1 else 11f
-                                tempMonth = newMonth
-                                // Adjust day if it exceeds max days in new month
-                                val maxDays = getMaxDays()
-                                if (tempDay > maxDays) {
-                                    tempDay = maxDays.toFloat()
-                                }
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Text(
-                                text = "−",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.secondary
-                            )
-                        }
-                        
-                        Slider(
-                            value = tempMonth,
-                            onValueChange = { 
-                                tempMonth = it
-                                // Adjust day if it exceeds max days in new month
-                                val maxDays = getMaxDays()
-                                if (tempDay > maxDays) {
-                                    tempDay = maxDays.toFloat()
-                                }
-                            },
-                            valueRange = 0f..11f,
-                            steps = 10,
-                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.secondary,
-                                activeTrackColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
-                                inactiveTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                            )
-                        )
-                        
-                        IconButton(
-                            onClick = { 
-                                val newMonth = if (tempMonth < 11) tempMonth + 1 else 0f
-                                tempMonth = newMonth
-                                // Adjust day if it exceeds max days in new month
-                                val maxDays = getMaxDays()
-                                if (tempDay > maxDays) {
-                                    tempDay = maxDays.toFloat()
-                                }
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Text(
-                                text = "+",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.secondary
-                            )
-                        }
-                    }
-                    
-                    Text(
-                        text = formatMonth(tempMonth),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Day with +/- buttons
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Day",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-                    
-                    val maxDays = getMaxDays()
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = { 
-                                val newDay = if (tempDay > 1) tempDay - 1 else maxDays.toFloat()
-                                tempDay = newDay
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Text(
-                                text = "−",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.tertiary
-                            )
-                        }
-                        
-                        Slider(
-                            value = tempDay,
-                            onValueChange = { tempDay = it },
-                            valueRange = 1f..maxDays.toFloat(),
-                            steps = maxDays - 2,
-                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.tertiary,
-                                activeTrackColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.6f),
-                                inactiveTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                            )
-                        )
-                        
-                        IconButton(
-                            onClick = { 
-                                val newDay = if (tempDay < maxDays) tempDay + 1 else 1f
-                                tempDay = newDay
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Text(
-                                text = "+",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.tertiary
-                            )
-                        }
-                    }
-                    
-                    Text(
-                        text = "${tempDay.toInt()}${getDaySuffix(tempDay.toInt())}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(20.dp))
-                
-                // Quick Date Selection Buttons
                 Text(
-                    text = "Quick Select",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    text = "Select Date",
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(bottom = 16.dp)
                 )
                 
+                // Simple date picker using Column and Row
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    columns = GridCells.Fixed(7),
+                    modifier = Modifier.weight(1f)
                 ) {
-                    items(listOf("Today", "Tomorrow", "Next Week")) { quickDate ->
-                        val isToday = quickDate == "Today"
-                        OutlinedButton(
-                            onClick = {
-                                when (quickDate) {
-                                    "Today" -> {
-                                        tempYear = today.year.toFloat()
-                                        tempMonth = (today.monthValue - 1).toFloat()
-                                        tempDay = today.dayOfMonth.toFloat()
-                                    }
-                                    "Tomorrow" -> {
-                                        val tomorrow = today.plusDays(1)
-                                        tempYear = tomorrow.year.toFloat()
-                                        tempMonth = (tomorrow.monthValue - 1).toFloat()
-                                        tempDay = tomorrow.dayOfMonth.toFloat()
-                                    }
-                                    "Next Week" -> {
-                                        val nextWeek = today.plusDays(7)
-                                        tempYear = nextWeek.year.toFloat()
-                                        tempMonth = (nextWeek.monthValue - 1).toFloat()
-                                        tempDay = nextWeek.dayOfMonth.toFloat()
-                                    }
-                                }
-                            },
-                            modifier = Modifier.height(32.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (isToday) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                                contentColor = if (isToday) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                if (isToday) {
-                                    // Animated Today icon
-                                    Text(
-                                        text = "🌟",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        modifier = Modifier.padding(end = 4.dp)
-                                    )
-                                    Text(
-                                        text = "Today",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                } else {
-                                    when (quickDate) {
-                                        "Tomorrow" -> {
-                                            Text(
-                                                text = "📅",
-                                                style = MaterialTheme.typography.titleSmall,
-                                                modifier = Modifier.padding(end = 4.dp)
-                                            )
-                                        }
-                                        "Next Week" -> {
-                                            Text(
-                                                text = "🗓️",
-                                                style = MaterialTheme.typography.titleSmall,
-                                                modifier = Modifier.padding(end = 4.dp)
-                                            )
-                                        }
-                                    }
-                                    Text(
-                                        text = quickDate,
-                                        fontSize = 10.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(20.dp))
-                
-                // Action Buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
-                        Text("Cancel")
-                    }
-                    
-                    Button(
-                        onClick = {
-                            try {
-                                val newDate = LocalDate.of(tempYear.toInt(), tempMonth.toInt() + 1, tempDay.toInt())
-                                onDateSelected(newDate)
-                                onDismiss()
-                            } catch (e: Exception) {
-                                // Invalid date, ignore
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
+                    // Day headers
+                    items(listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")) { day ->
+                        Text(
+                            text = day,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(4.dp),
+                            fontWeight = FontWeight.Bold
                         )
-                    ) {
-                        Text("Set Date")
                     }
-                }
-            }
-        }
-    }
-}
-
-// Helper function to get day suffix (1st, 2nd, 3rd, 4th, etc.)
-fun getDaySuffix(day: Int): String {
-    return when (day % 100) {
-        11, 12, 13 -> "th"
-        else -> when (day % 10) {
-            1 -> "st"
-            2 -> "nd"
-            3 -> "rd"
-            else -> "th"
-        }
-    }
-}
-
-// Modern Slider Time Picker Dialog Component
-@Composable
-fun TimePickerDialog(
-    selectedTime: LocalTime,
-    onTimeSelected: (LocalTime) -> Unit,
-    onDismiss: () -> Unit
-) {
-    // Directly use selectedTime values - no separate state needed
-    val hour = remember { derivedStateOf { selectedTime.hour.toFloat() } }
-    val minute = remember { derivedStateOf { selectedTime.minute.toFloat() } }
-    
-    android.util.Log.d("TimePickerDialog", "Dialog opened with selectedTime=$selectedTime, hour=$hour, minute=$minute")
-    
-    // Helper functions for time formatting
-    fun formatHour(h: Float): String {
-        val hour24 = h.toInt()
-        val displayHour = when {
-            hour24 == 0 -> "12"
-            hour24 <= 12 -> hour24.toString()
-            else -> (hour24 - 12).toString()
-        }
-        val period = if (hour24 < 12) "AM" else "PM"
-        return "$displayHour $period"
-    }
-    
-    fun formatTime(h: Float, m: Float): String {
-        val hour24 = h.toInt()
-        val displayHour = when {
-            hour24 == 0 -> "12"
-            hour24 <= 12 -> hour24.toString()
-            else -> (hour24 - 12).toString()
-        }
-        val period = if (hour24 < 12) "AM" else "PM"
-        val hourInt = displayHour.toIntOrNull() ?: 12
-        return String.format("%02d:%02d %s", hourInt, m.toInt(), period)
-    }
-    
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Title with current time preview
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(bottom = 24.dp)
-                ) {
-                    Text(
-                        text = "⏰ Select Time",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
                     
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Large time display
-                    Text(
-                        text = formatTime(hour, minute),
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Light,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                
-                // Hour Slider
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Hour",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    
-                     Row(
-                         modifier = Modifier.fillMaxWidth(),
-                         verticalAlignment = Alignment.CenterVertically,
-                         horizontalArrangement = Arrangement.spacedBy(8.dp)
-                     ) {
-                         IconButton(
-                             onClick = { 
-                                 val newHour = (hour.toInt() - 1).coerceIn(0, 23)
-                                 hour = newHour.toFloat()
-                             },
-                             modifier = Modifier.size(48.dp)
-                         ) {
-                             Text("−", style = MaterialTheme.typography.titleLarge)
-                         }
-                         
-                         Slider(
-                             value = hour,
-                             onValueChange = { hour = it },
-                             valueRange = 0f..23f,
-                             steps = 22, // 24 values - 2 endpoints = 22 steps
-                             modifier = Modifier.weight(1f),
-                             colors = SliderDefaults.colors(
-                                 thumbColor = MaterialTheme.colorScheme.primary,
-                                 activeTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                                 inactiveTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                             )
-                         )
-                         
-                         IconButton(
-                             onClick = { 
-                                 val newHour = (hour.toInt() + 1).coerceIn(0, 23)
-                                 hour = newHour.toFloat()
-                             },
-                             modifier = Modifier.size(48.dp)
-                         ) {
-                             Text("+", style = MaterialTheme.typography.titleLarge)
-                         }
-                     }
-                    
-                    Text(
-                        text = formatHour(hour),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                // Minute Slider
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Minute",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    
-                     Row(
-                         modifier = Modifier.fillMaxWidth(),
-                         verticalAlignment = Alignment.CenterVertically,
-                         horizontalArrangement = Arrangement.spacedBy(8.dp)
-                     ) {
-                         IconButton(
-                             onClick = { 
-                                 val newMinute = (minute.toInt() - 1).coerceIn(0, 59)
-                                 minute = newMinute.toFloat()
-                             },
-                             modifier = Modifier.size(48.dp)
-                         ) {
-                             Text("−", style = MaterialTheme.typography.titleLarge)
-                         }
-                         
-                         Slider(
-                             value = minute,
-                             onValueChange = { minute = it },
-                             valueRange = 0f..59f,
-                             steps = 58, // 60 values - 2 endpoints = 58 steps
-                             modifier = Modifier.weight(1f),
-                             colors = SliderDefaults.colors(
-                                 thumbColor = MaterialTheme.colorScheme.secondary,
-                                 activeTrackColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
-                                 inactiveTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                             )
-                         )
-                         
-                         IconButton(
-                             onClick = { 
-                                 val newMinute = (minute.toInt() + 1).coerceIn(0, 59)
-                                 minute = newMinute.toFloat()
-                             },
-                             modifier = Modifier.size(48.dp)
-                         ) {
-                             Text("+", style = MaterialTheme.typography.titleLarge)
-                         }
-                     }
-                    
-                    Text(
-                        text = String.format("%02d minutes", minute.toInt()),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                // Quick Time Selection Chips
-                Text(
-                    text = "Quick Select",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-                
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(4),
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(listOf("9AM", "12PM", "3PM", "6PM", "8AM", "2PM", "5PM", "7PM")) { time ->
-                        OutlinedButton(
-                            onClick = {
-                                val (h, m) = when (time) {
-                                    "8AM" -> Pair(8f, 0f)
-                                    "9AM" -> Pair(9f, 0f)
-                                    "12PM" -> Pair(12f, 0f)
-                                    "2PM" -> Pair(14f, 0f)
-                                    "3PM" -> Pair(15f, 0f)
-                                    "5PM" -> Pair(17f, 0f)
-                                    "6PM" -> Pair(18f, 0f)
-                                    "7PM" -> Pair(19f, 0f)
-                                    else -> Pair(hour, minute)
-                                }
-                                hour = h
-                                minute = m
-                            },
-                            modifier = Modifier.height(32.dp)
+                    // Date cells (simplified)
+                    val daysInMonth = 31
+                    items(daysInMonth) { day ->
+                        val date = LocalDate.of(selectedDate.year, selectedDate.monthValue, day + 1)
+                        val isSelected = date == selectedDate
+                        
+                        Box(
+                            modifier = Modifier
+                                .padding(2.dp)
+                                .size(40.dp)
+                                .clickable { 
+                                    selectedDate = date
+                                },
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = time,
-                                fontSize = 12.sp
+                                text = (day + 1).toString(),
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                // Action Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
+                    TextButton(onClick = onDismiss) {
                         Text("Cancel")
                     }
-                    
-                    Button(
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(
                         onClick = {
-                            onTimeSelected(LocalTime.of(hour.toInt(), minute.toInt()))
+                            onDateSelected(selectedDate)
                             onDismiss()
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
+                        }
                     ) {
-                        Text("Set Time")
+                        Text("OK")
                     }
                 }
             }
@@ -967,183 +242,205 @@ fun TimePickerDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun TimePickerDialog(
+    selectedTime: LocalTime,
+    onTimeSelected: (LocalTime) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var hour by remember { mutableStateOf(selectedTime.hour) }
+    var minute by remember { mutableStateOf(selectedTime.minute) }
+    
+    android.util.Log.d("TimePickerDialog", "Dialog opened with selectedTime=$selectedTime, hour=$hour, minute=$minute")
+    
+    fun formatTime(h: Int, m: Int): String {
+        val displayHour = if (h == 0) 12 else if (h > 12) h - 12 else h
+        val period = if (h < 12) "AM" else "PM"
+        return "$displayHour:${String.format("%02d", m)} $period"
+    }
+    
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Select Time",
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                Text(
+                    text = formatTime(hour, minute),
+                    style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Hour picker
+                Text("Hour", style = MaterialTheme.typography.labelMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    for (h in 0..23) {
+                        FilterChip(
+                            onClick = { hour = h },
+                            label = { Text(h.toString()) },
+                            selected = hour == h
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Minute picker
+                Text("Minute", style = MaterialTheme.typography.labelMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    for (m in listOf(0, 15, 30, 45)) {
+                        FilterChip(
+                            onClick = { minute = m },
+                            label = { Text(String.format("%02d", m)) },
+                            selected = minute == m
+                        )
+                    }
+                }
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(
+                        onClick = {
+                            val time = LocalTime.of(hour, minute)
+                            android.util.Log.d("TimePickerDialog", "Time selected: $time")
+                            onTimeSelected(time)
+                            onDismiss()
+                        }
+                    ) {
+                        Text("OK")
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Helper function to parse day string to date
+fun parseDayToDate(dayStr: String): LocalDate {
+    val today = LocalDate.now()
+    return when (dayStr.lowercase()) {
+        "today" -> today
+        "tomorrow" -> today.plusDays(1)
+        "yesterday" -> today.minusDays(1)
+        "monday" -> getNextWeekday(today, java.time.DayOfWeek.MONDAY)
+        "tuesday" -> getNextWeekday(today, java.time.DayOfWeek.TUESDAY)
+        "wednesday" -> getNextWeekday(today, java.time.DayOfWeek.WEDNESDAY)
+        "thursday" -> getNextWeekday(today, java.time.DayOfWeek.THURSDAY)
+        "friday" -> getNextWeekday(today, java.time.DayOfWeek.FRIDAY)
+        "saturday" -> getNextWeekday(today, java.time.DayOfWeek.SATURDAY)
+        "sunday" -> getNextWeekday(today, java.time.DayOfWeek.SUNDAY)
+        else -> today
+    }
+}
+
+// Helper function to get next occurrence of a weekday
+fun getNextWeekday(fromDate: LocalDate, targetDay: java.time.DayOfWeek): LocalDate {
+    var current = fromDate
+    while (current.dayOfWeek != targetDay) {
+        current = current.plusDays(1)
+    }
+    return current
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun InputScreen(
     viewModel: ReminderViewModel,
-    speechManager: SpeechManager,
-    reminderId: Int?,
     onBack: () -> Unit,
-    onConfirm: (String, Long) -> Unit,
-    onCalendarClick: () -> Unit = {}
+    reminderId: Int? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
-    // Single content field - supports both typing and voice
+    // State variables
     var content by remember { mutableStateOf("") }
-    var isProcessing by remember { mutableStateOf(false) }
-    var loadedReminder by remember { mutableStateOf<com.reminder.app.data.Reminder?>(null) }
-    
-    // Priority selection
-    var selectedPriority by remember { mutableStateOf(5) }
-    
-    // Trigger configuration state
-    var showTriggerConfig by remember { mutableStateOf(false) }
-    var enableAtDueTime by remember { mutableStateOf(true) }
-    var enableMinutesBefore by remember { mutableStateOf(false) }
-    var minutesBeforeValue by remember { mutableStateOf(15) }
-    var enableHoursBefore by remember { mutableStateOf(false) }
-    var hoursBeforeValue by remember { mutableStateOf(1) }
-    var enableDaysBefore by remember { mutableStateOf(false) }
-    var daysBeforeValue by remember { mutableStateOf(1) }
-    
-    // Enhanced date/time state
-    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
-    var selectedTime by remember { mutableStateOf(LocalTime.NOON) }
-    var showDatePicker by remember { mutableStateOf(false) }
-    var showTimePicker by remember { mutableStateOf(false) }
-    var showTimeSuggestions by remember { mutableStateOf(false) }
+    var category by remember { mutableStateOf("Personal") }
+    var importance by remember { mutableStateOf(5) }
     var whenDay by remember { mutableStateOf("") }
     var whenTime by remember { mutableStateOf("") }
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    var selectedTime by remember { mutableStateOf(LocalTime.now()) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+    var isRecording by remember { mutableStateOf(false) }
+    var isProcessing by remember { mutableStateOf(false) }
     
-    // Common time suggestions
-    val timeSuggestions = listOf(
-        "9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM",
-        "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM",
-        "5:00 PM", "6:00 PM", "7:00 PM", "8:00 PM",
-        "Morning", "Afternoon", "Evening", "Night"
-    )
-    val priorityOptions = listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
-    val priorityLabels = mapOf(
-        1 to "Very Low", 2 to "Low", 3 to "Low-Medium", 4 to "Medium-Low",
-        5 to "Medium", 6 to "Medium-High", 7 to "High-Medium", 
-        8 to "High", 9 to "Very High", 10 to "Urgent"
-    )
+    // Speech recognition
+    val speechManager = remember { SpeechManager(context) }
+    val smartVoiceProcessor = remember { SmartVoiceProcessor() }
     
-    // Simple function to parse time strings like "5pm", "3:30pm", "10am"
-    fun parseTimeString(timeStr: String): LocalTime {
-        val cleanTime = timeStr.lowercase().trim()
-        
-        // Handle "5pm", "3:30pm", "10:15 am"
-        if (cleanTime.contains("am") || cleanTime.contains("pm")) {
-            val timePattern = Regex("(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)")
-            val match = timePattern.find(cleanTime)
-            if (match != null) {
-                val hour = match.groupValues[1].toInt()
-                val minute = match.groupValues[2].takeIf { it.isNotBlank() }?.toInt() ?: 0
-                val ampm = match.groupValues[3]
-                val parsedHour = if (ampm == "am") {
-                    if (hour == 12) 0 else hour
-                } else {
-                    if (hour == 12) 12 else hour + 12
-                }
-                return LocalTime.of(parsedHour, minute)
-            }
-        }
-        
-        // Handle "15:30", "09:45" (24-hour format)
-        if (cleanTime.contains(":")) {
-            val parts = cleanTime.split(":")
-            if (parts.size == 2) {
-                val hour = parts[0].toIntOrNull()
-                val minute = parts[1].toIntOrNull()
-                if (hour != null && minute != null) {
-                    return LocalTime.of(hour.coerceIn(0, 23), minute.coerceIn(0, 59))
-                }
-            }
-        }
-        
-        // Handle simple numbers like "5", "15"
-        val hour = cleanTime.toIntOrNull()
-        if (hour != null) {
-            return LocalTime.of(hour.coerceIn(0, 23), 0)
-        }
-        
-        // Fallback to noon
-        return LocalTime.NOON
-    }
-
-    // Load existing reminder data if editing
+    // Load reminder data if editing
     LaunchedEffect(reminderId) {
-        reminderId?.let { id ->
-            scope.launch {
+        if (reminderId != null) {
+            android.util.Log.d("InputScreen", "Loading reminder with ID: $reminderId")
+            // Add delay to ensure database operations complete
+            delay(100)
+            
+            viewModel.getReminderById(reminderId)?.let { reminder ->
+                android.util.Log.d("InputScreen", "Loaded reminder: $reminder")
+                content = reminder.content
+                category = reminder.category
+                importance = reminder.importance
+                whenDay = reminder.whenDay ?: ""
+                whenTime = reminder.whenTime ?: ""
+                
+                // Parse and set selectedDate and selectedTime from whenDay and whenTime
                 try {
-                    val reminder = viewModel.getReminderById(id)
-                    if (reminder != null) {
-                        loadedReminder = reminder
-                        content = reminder.content
-                        selectedPriority = reminder.importance
-                        whenDay = reminder.whenDay ?: ""
-                        whenTime = reminder.whenTime ?: ""
-                        
-                        // Load date from reminderTime
-                        val reminderDateTime = java.time.Instant.ofEpochMilli(reminder.reminderTime)
-                            .atZone(java.time.ZoneId.systemDefault())
-                            .toLocalDateTime()
-                        selectedDate = reminderDateTime.toLocalDate()
-                        
-                        // Load time - prioritize whenTime, fallback to reminderTime
-                        selectedTime = if (!reminder.whenTime.isNullOrBlank()) {
-                            parseTimeString(reminder.whenTime)
-                        } else {
-                            reminderDateTime.toLocalTime()
-                        }
-                        
-                        android.util.Log.d("InputScreen", "Loaded reminder: whenTime='${reminder.whenTime}' -> selectedTime='$selectedTime'")
+                    if (!reminder.whenDay.isNullOrBlank()) {
+                        selectedDate = parseDayToDate(reminder.whenDay)
+                    }
+                    if (!reminder.whenTime.isNullOrBlank()) {
+                        selectedTime = LocalTime.parse(reminder.whenTime!!, DateTimeFormatter.ofPattern("h:mm a"))
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e("InputScreen", "Error loading reminder: ${e.message}")
+                    android.util.Log.e("InputScreen", "Error parsing datetime: ${e.message}")
                 }
             }
         }
     }
     
-
-    
-    // Speech states
-    val isListening by speechManager.isListening.collectAsState()
-    val speechResult by speechManager.speechResult.collectAsState()
-    
-    // Function to launch keyboard voice input
-    fun launchKeyboardVoiceInput() {
-        try {
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "What do you need to remember?")
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            }
-            
-            (context as? Activity)?.startActivityForResult(intent, 1002)
-        } catch (e: Exception) {
-            Log.e("InputScreen", "Error launching keyboard voice input: ${e.message}")
-        }
-    }
-    
-    // Simple processing for user content
-    LaunchedEffect(content) {
-        if (content.isNotBlank() && !isProcessing) {
+    // Only auto-process content for NEW reminders, not when editing
+    LaunchedEffect(content, reminderId) {
+        if (content.isNotBlank() && !isProcessing && reminderId == null) {
             isProcessing = true
             scope.launch {
                 try {
-                    // Simple processing with delay for better UX
-                    kotlinx.coroutines.delay(300)
+                    val processed = smartVoiceProcessor.processVoiceInput(content)
                     
-                    // Extract basic info
-                    val processedCategory = extractCategory(content)
-                    val processedTime = extractTime(content)
-                    val processedPriority = extractPriority(content)
-                    
-                    // Extract day and time separately
                     val extractedDay = extractDay(content)
                     val extractedTime = extractTimeOnly(content)
                     
-                    // Always auto-fill day and time fields when content changes
+                    // Only auto-fill for NEW reminders, not when editing existing ones
                     whenDay = extractedDay
                     whenTime = extractedTime
                     
-                    Log.d("InputScreen", "Processed: category='$processedCategory', time='$processedTime', priority='$processedPriority', day='$extractedDay', timeOnly='$extractedTime'")
+                    android.util.Log.d("InputScreen", "Auto-filled - Day: $extractedDay, Time: $extractedTime")
+                    
                 } catch (e: Exception) {
-                    Log.e("InputScreen", "Error processing content: ${e.message}")
+                    android.util.Log.e("InputScreen", "Error processing content: ${e.message}")
                 } finally {
                     isProcessing = false
                 }
@@ -1151,115 +448,71 @@ fun InputScreen(
         }
     }
     
-
-    
-    // Handle speech results
-    LaunchedEffect(speechResult) {
-        speechResult?.let { result ->
-            if (!result.contains("permission") && !result.contains("not available") && !result.contains("error") && !result.contains("Try:") && !result.contains("Hey Google")) {
-                content = result
+    // Save reminder
+    fun saveReminder() {
+        if (content.isBlank()) {
+            android.util.Log.w("InputScreen", "Cannot save reminder: content is blank")
+            return
+        }
+        
+        scope.launch {
+            try {
+                // Update whenDay and whenTime from selectedDate and selectedTime
+                val updatedWhenDay = if (whenDay.isBlank()) formatDateForContent(selectedDate) else whenDay
+                val updatedWhenTime = if (whenTime.isBlank()) formatTimeForContent(selectedTime) else whenTime
+                
+                android.util.Log.d("InputScreen", "Saving reminder with whenDay: $updatedWhenDay, whenTime: $updatedWhenTime")
+                
+                // Calculate reminder time from selected date and time
+                val reminderDateTime = selectedDate.atTime(selectedTime)
+                val reminderTimeMillis = reminderDateTime.toEpochSecond(java.time.ZoneOffset.UTC) * 1000
+                
+                if (reminderId != null) {
+                    val updatedReminder = Reminder(
+                        id = reminderId,
+                        content = content,
+                        category = category,
+                        importance = importance,
+                        reminderTime = reminderTimeMillis,
+                        whenDay = updatedWhenDay,
+                        whenTime = updatedWhenTime
+                    )
+                    viewModel.updateReminder(updatedReminder)
+                    android.util.Log.d("InputScreen", "Updated reminder $reminderId")
+                } else {
+                    val newReminder = Reminder(
+                        content = content,
+                        category = category,
+                        importance = importance,
+                        reminderTime = reminderTimeMillis,
+                        whenDay = updatedWhenDay,
+                        whenTime = updatedWhenTime
+                    )
+                    viewModel.addReminder(newReminder)
+                    android.util.Log.d("InputScreen", "Added new reminder")
+                }
+                
+                // Add delay before navigation to ensure update completion
+                delay(200)
+                onBack()
+                
+            } catch (e: Exception) {
+                android.util.Log.e("InputScreen", "Error saving reminder: ${e.message}")
             }
-            speechManager.clearSpeechResult()
         }
     }
     
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Create Reminder") },
+                title = { Text(if (reminderId != null) "Edit Reminder" else "New Reminder") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    IconButton(onClick = onCalendarClick) {
-                        Icon(Icons.Default.CalendarMonth, contentDescription = "Calendar")
-                    }
-                    Button(
-                        onClick = {
-                            if (content.isNotBlank()) {
-                                // Create reminder with enhanced date/time
-                                val reminderDateTime = java.time.LocalDateTime.of(selectedDate, selectedTime)
-                                val reminderTimeMillis = reminderDateTime
-                                    .atZone(java.time.ZoneId.systemDefault())
-                                    .toInstant()
-                                    .toEpochMilli()
-                                
-                                // Only update whenDay and whenTime if they are empty (preserve user input)
-                                if (whenDay.isBlank()) {
-                                    whenDay = when {
-                                        selectedDate == LocalDate.now() -> "Today"
-                                        selectedDate == LocalDate.now().plusDays(1) -> "Tomorrow"
-                                        else -> selectedDate.format(DateTimeFormatter.ofPattern("EEEE"))
-                                    }
-                                }
-                                if (whenTime.isBlank()) {
-                                    whenTime = selectedTime.format(DateTimeFormatter.ofPattern("h:mm a"))
-                                }
-                                
-                                // Build trigger points JSON
-                                val triggerPoints = mutableListOf<com.reminder.app.data.TriggerPoint>()
-                                if (enableAtDueTime) {
-                                    triggerPoints.add(com.reminder.app.data.TriggerPoint(com.reminder.app.data.TriggerType.AT_DUE_TIME))
-                                }
-                                if (enableMinutesBefore) {
-                                    triggerPoints.add(com.reminder.app.data.TriggerPoint(com.reminder.app.data.TriggerType.MINUTES_BEFORE, minutesBeforeValue))
-                                }
-                                if (enableHoursBefore) {
-                                    triggerPoints.add(com.reminder.app.data.TriggerType.HOURS_BEFORE, hoursBeforeValue))
-                                }
-                                if (enableDaysBefore) {
-                                    triggerPoints.add(com.reminder.app.data.TriggerType.DAYS_BEFORE, daysBeforeValue)
-                                }
-                                }
-                                
-                                // Convert to JSON
-                                val triggerPointsJson = org.json.JSONArray().apply {
-                                    triggerPoints.forEach { trigger ->
-                                        put(org.json.JSONObject().apply {
-                                            put("type", trigger.type.name)
-                                            put("value", trigger.value)
-                                            put("customOffsetMs", trigger.customOffsetMs)
-                                            put("enableFlash", true)
-                                            put("enableSound", true)
-                                            put("enableVibration", true)
-                                        })
-                                    }
-                                }.toString()
-                                
-                                // Merge time/date into content for proper display
-                                val mergedContent = mergeTimeDateIntoContent(content, selectedTime, selectedDate)
-                                
-                                val reminder = com.reminder.app.data.Reminder(
-                                    content = mergedContent,
-                                    category = extractCategory(mergedContent),
-                                    importance = selectedPriority,
-                                    reminderTime = reminderTimeMillis,
-                                    whenDay = whenDay.ifBlank { null },
-                                    whenTime = whenTime.ifBlank { null },
-                                    voiceInput = mergedContent,
-                                    isProcessed = true,
-                                    triggerPoints = triggerPointsJson
-                                )
-                                
-                                if (reminderId != null) {
-                                    // Update existing reminder
-                                    val updatedReminder = reminder.copy(id = reminderId)
-                                    android.util.Log.d("InputScreen", "Updating reminder: id=${reminderId}, newReminderTime=${reminder.reminderTime}, whenDay=${whenDay}, whenTime=${whenTime}")
-                                    viewModel.updateReminder(updatedReminder)
-                                    // Add a small delay before navigating back to ensure database update is complete
-                                    kotlinx.coroutines.delay(200)
-                                } else {
-                                    // Add new reminder
-                                    android.util.Log.d("InputScreen", "Adding new reminder: reminderTime=${reminder.reminderTime}, whenDay=${whenDay}, whenTime=${whenTime}")
-                                    viewModel.addReminder(reminder)
-                                }
-                                onBack()
-                            }
-                        },
-                        enabled = content.isNotBlank() && !isProcessing
-                    ) {
+                    TextButton(onClick = { saveReminder() }) {
                         Text("Save")
                     }
                 }
@@ -1274,504 +527,207 @@ fun InputScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Main Voice Input Section
-            Card(
+            // Content input
+            OutlinedTextField(
+                value = content,
+                onValueChange = { content = it },
+                label = { Text("Reminder") },
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = "📝 Create Your Reminder",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    // Single content field (typing + voice)
-                    OutlinedTextField(
-                        value = content,
-                        onValueChange = { content = it },
-                        label = { Text("What do you need to remember?") },
-                        modifier = Modifier.fillMaxWidth(),
-                        maxLines = 4,
-                        placeholder = { Text("e.g., Call mom tomorrow at 3pm or Buy groceries after work") }
-                    )
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    // Modern Date Picker
-                    OutlinedCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showDatePicker = true },
-                        colors = CardDefaults.outlinedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "📅 Date",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = selectedDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                            }
-                            Icon(
-                                Icons.Default.CalendarMonth,
-                                contentDescription = "Select Date",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Modern Time Picker
-                    OutlinedCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showTimePicker = true },
-                        colors = CardDefaults.outlinedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "⏰ Time",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = selectedTime.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)),
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                            }
-                            Icon(
-                                Icons.Default.AccessTime,
-                                contentDescription = "Select Time",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Quick Time Suggestions Dropdown
-                    ExposedDropdownMenuBox(
-                        expanded = showTimeSuggestions,
-                        onExpandedChange = { showTimeSuggestions = it }
-                    ) {
-                        OutlinedTextField(
-                            value = whenTime,
-                            onValueChange = { 
-                                whenTime = it
-                                showTimeSuggestions = false
-                            },
-                            label = { Text("Quick Time (optional)") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(),
-                            placeholder = { Text("e.g., Morning, 3pm, 2:30pm") },
-                            trailingIcon = {
-                                IconButton(onClick = { showTimeSuggestions = !showTimeSuggestions }) {
-                                    Icon(
-                                        Icons.Default.ExpandMore,
-                                        contentDescription = "Show Suggestions"
-                                    )
-                                }
-                            }
-                        )
-                        
-                        ExposedDropdownMenu(
-                            expanded = showTimeSuggestions,
-                            onDismissRequest = { showTimeSuggestions = false }
-                        ) {
-                            timeSuggestions.forEach { suggestion ->
-                                DropdownMenuItem(
-                                    text = { Text(suggestion) },
-                                    onClick = {
-                                        whenTime = suggestion
-                                        showTimeSuggestions = false
-                                        
-                                        // Use our consistent time parsing function
-                                        selectedTime = parseTimeString(suggestion)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    // Priority selector with slider
-                    Text(
-                        text = "Priority Level: ${priorityLabels[selectedPriority]} ($selectedPriority)",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    
-                    Slider(
-                        value = selectedPriority.toFloat(),
-                        onValueChange = { selectedPriority = it.toInt() },
-                        valueRange = 1f..10f,
-                        steps = 8, // 10 values - 2 endpoints = 8 steps
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = SliderDefaults.colors(
-                            thumbColor = when (selectedPriority) {
-                                in 8..10 -> Red
-                                in 6..7 -> Color(0xFFFFA500) // Orange
-                                in 4..5 -> Blue
-                                else -> Green
-                            },
-                            activeTrackColor = when (selectedPriority) {
-                                in 8..10 -> Red.copy(alpha = 0.5f)
-                                in 6..7 -> Color(0xFFFFA500).copy(alpha = 0.5f) // Orange
-                                in 4..5 -> Blue.copy(alpha = 0.5f)
-                                else -> Green.copy(alpha = 0.5f)
-                            }
-                        )
-                    )
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("1", style = MaterialTheme.typography.bodySmall)
-                        Text("5", style = MaterialTheme.typography.bodySmall)
-                        Text("10", style = MaterialTheme.typography.bodySmall)
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // Trigger Configuration Section
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "⏰ Alert Settings",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                TextButton(
-                                    onClick = { showTriggerConfig = !showTriggerConfig }
-                                ) {
-                                    Text(if (showTriggerConfig) "Hide" else "Configure")
-                                }
-                            }
-                            
-                            if (showTriggerConfig) {
-                                Spacer(modifier = Modifier.height(12.dp))
-                                
-                                // At Due Time
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = enableAtDueTime,
-                                        onCheckedChange = { enableAtDueTime = it }
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "At due time",
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-                                
-                                // Minutes Before
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = enableMinutesBefore,
-                                        onCheckedChange = { enableMinutesBefore = it }
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Minutes before:",
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Slider(
-                                        value = minutesBeforeValue.toFloat(),
-                                        onValueChange = { minutesBeforeValue = it.toInt() },
-                                        valueRange = 5f..60f,
-                                        steps = 11,
-                                        modifier = Modifier.weight(1f),
-                                        enabled = enableMinutesBefore
-                                    )
-                                    Text(
-                                        text = "${minutesBeforeValue}m",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.width(30.dp)
-                                    )
-                                }
-                                
-                                // Hours Before
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = enableHoursBefore,
-                                        onCheckedChange = { enableHoursBefore = it }
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Hours before:",
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Slider(
-                                        value = hoursBeforeValue.toFloat(),
-                                        onValueChange = { hoursBeforeValue = it.toInt() },
-                                        valueRange = 1f..24f,
-                                        steps = 22,
-                                        modifier = Modifier.weight(1f),
-                                        enabled = enableHoursBefore
-                                    )
-                                    Text(
-                                        text = "${hoursBeforeValue}h",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.width(30.dp)
-                                    )
-                                }
-                                
-                                // Days Before
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = enableDaysBefore,
-                                        onCheckedChange = { enableDaysBefore = it }
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Days before:",
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Slider(
-                                        value = daysBeforeValue.toFloat(),
-                                        onValueChange = { daysBeforeValue = it.toInt() },
-                                        valueRange = 1f..7f,
-                                        steps = 5,
-                                        modifier = Modifier.weight(1f),
-                                        enabled = enableDaysBefore
-                                    )
-                                    Text(
-                                        text = "${daysBeforeValue}d",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.width(30.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    // Single voice input button - ONE CLICK
-                    Button(
+                trailingIcon = {
+                    IconButton(
                         onClick = {
-                            if (isListening) {
+                            if (isRecording) {
                                 speechManager.stopListening()
+                                isRecording = false
                             } else {
-                                // Try keyboard voice input first (most reliable)
-                                launchKeyboardVoiceInput()
-                                // Fallback to direct mic if keyboard doesn't work
-                                scope.launch {
-                                    kotlinx.coroutines.delay(1000)
-                                    if (content.isBlank()) {
-                                        speechManager.restartSpeechRecognizer()
-                                        speechManager.startListening()
-                                    }
-                                }
+                                speechManager.startListening()
+                                isRecording = true
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isListening) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
-                        )
+                        }
                     ) {
                         Icon(
-                            if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
-                            contentDescription = if (isListening) "Stop Recording" else "Start Voice Input",
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (isListening) "⏹️ Stop Recording" else "🎤 Tap to Speak",
-                            color = MaterialTheme.colorScheme.onSecondary
-                        )
-                    }
-                    
-                    if (isListening) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Text(
-                            text = "Listening...",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
+                            if (isRecording) Icons.Default.MicOff else Icons.Default.Mic,
+                            contentDescription = if (isRecording) "Stop Recording" else "Start Recording",
+                            tint = if (isRecording) Red else MaterialTheme.colorScheme.primary
                         )
                     }
                 }
-            }
+            )
             
-            // Processing indicator
-            if (isProcessing) {
-                Card(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        CircularProgressIndicator()
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("🧠 Processing Your Request...")
-                    }
-                }
-            }
-            
-            // Simple Analysis (shows extraction)
-            if (content.isNotBlank()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+            // Category selection
+            Text("Category", style = MaterialTheme.typography.labelLarge)
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.height(80.dp)
+            ) {
+                items(listOf("Work", "Family", "Personal")) { cat ->
+                    FilterChip(
+                        onClick = { category = cat },
+                        label = { Text(cat) },
+                        selected = category == cat
                     )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                }
+            }
+            
+            // Importance slider
+            Text("Importance: $importance", style = MaterialTheme.typography.labelLarge)
+            Slider(
+                value = importance.toFloat(),
+                onValueChange = { importance = it.toInt() },
+                valueRange = 1f..10f,
+                steps = 8,
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            // Date selection
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = whenDay,
+                    onValueChange = { whenDay = it },
+                    label = { Text("Date") },
+                    modifier = Modifier.weight(1f),
+                    readOnly = true,
+                    trailingIcon = {
+                        IconButton(onClick = { showDatePicker = true }) {
+                            Icon(Icons.Default.CalendarMonth, contentDescription = "Select Date")
+                        }
+                    }
+                )
+            }
+            
+            // Quick date suggestions
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.height(60.dp)
+            ) {
+                items(quickDates) { quickDate ->
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                whenDay = quickDate
+                                selectedDate = parseDayToDate(quickDate)
+                            },
+                        shape = MaterialTheme.shapes.small,
+                        color = if (whenDay == quickDate) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
                     ) {
-                        Text(
-                            text = "🧠 Quick Analysis",
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                        
-                        Text(
-                            text = "📝 Task: ${content.replace(Regex("(remind me to|remember to)"), "").trim()}",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        
-                        Text(
-                            text = "📁 Category: ${extractCategory(content)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        
-                        Text(
-                            text = "📅 Day: ${if (whenDay.isNotBlank()) whenDay else "Not specified"}",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        
-                        Text(
-                            text = "⏰ Time: ${if (whenTime.isNotBlank()) whenTime else "Not specified"}",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        
-                        Text(
-                            text = "🔥 Priority: ${extractPriority(content)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = when (extractPriority(content)) {
-                                "High" -> MaterialTheme.colorScheme.error
-                                "Medium" -> MaterialTheme.colorScheme.primary
-                                else -> MaterialTheme.colorScheme.secondary
-                            }
-                        )
-                        
-                        if (showTriggerConfig) {
-                            val triggerSummary = mutableListOf<String>()
-                            if (enableAtDueTime) triggerSummary.add("At due time")
-                            if (enableMinutesBefore) triggerSummary.add("${minutesBeforeValue}m before")
-                            if (enableHoursBefore) triggerSummary.add("${hoursBeforeValue}h before")
-                            if (enableDaysBefore) triggerSummary.add("${daysBeforeValue}d before")
-                            
-                            if (triggerSummary.isNotEmpty()) {
-                                Text(
-                                    text = "⏰ Alerts: ${triggerSummary.joinToString(", ")}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.tertiary
-                                )
-                            }
+                        Row(
+                            modifier = Modifier.padding(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.CalendarMonth,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.padding(end = 4.dp))
+                            Text(
+                                text = quickDate,
+                                fontSize = 10.sp
+                            )
                         }
                     }
                 }
             }
             
+            // Time selection
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = whenTime,
+                    onValueChange = { whenTime = it },
+                    label = { Text("Time") },
+                    modifier = Modifier.weight(1f),
+                    readOnly = true,
+                    trailingIcon = {
+                        IconButton(onClick = { showTimePicker = true }) {
+                            Icon(Icons.Default.AccessTime, contentDescription = "Select Time")
+                        }
+                    }
+                )
+            }
             
-        }
-    }
-    
-    // Date Picker Dialog
-    if (showDatePicker) {
-        DatePickerDialog(
-            selectedDate = selectedDate,
-            onDateSelected = { date ->
-                selectedDate = date
-                // Only update whenDay if it's currently blank (preserve user input)
-                if (whenDay.isBlank()) {
-                    whenDay = when {
-                        date == LocalDate.now() -> "Today"
-                        date == LocalDate.now().plusDays(1) -> "Tomorrow"
-                        else -> date.format(DateTimeFormatter.ofPattern("EEEE"))
+            // Quick time suggestions
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.height(60.dp)
+            ) {
+                items(quickTimes) { quickTime ->
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                whenTime = quickTime
+                                selectedTime = LocalTime.parse(quickTime, DateTimeFormatter.ofPattern("h:mm a"))
+                            },
+                        shape = MaterialTheme.shapes.small,
+                        color = if (whenTime == quickTime) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.AccessTime,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.padding(end = 4.dp))
+                            Text(
+                                text = quickTime,
+                                fontSize = 10.sp
+                            )
+                        }
                     }
                 }
-            },
-            onDismiss = { showDatePicker = false }
-        )
-    }
-    
-    // Time Picker Dialog
-    if (showTimePicker) {
-        TimePickerDialog(
-            selectedTime = selectedTime,
-            onTimeSelected = { time ->
-                selectedTime = time
-                // Only update whenTime if it's currently blank (preserve user input)
-                if (whenTime.isBlank()) {
-                    whenTime = time.format(DateTimeFormatter.ofPattern("h:mm a"))
-                }
-            },
-            onDismiss = { showTimePicker = false }
-        )
+            }
+        }
+        
+        // Date Picker Dialog
+        if (showDatePicker) {
+            DatePickerDialog(
+                initialDate = selectedDate,
+                onDateSelected = { date ->
+                    selectedDate = date
+                    // Only update whenDay if it's currently blank (preserve user input)
+                    if (whenDay.isBlank()) {
+                        whenDay = when {
+                            date == LocalDate.now() -> "Today"
+                            date == LocalDate.now().plusDays(1) -> "Tomorrow"
+                            else -> date.format(DateTimeFormatter.ofPattern("EEEE"))
+                        }
+                    }
+                },
+                onDismiss = { showDatePicker = false }
+            )
+        }
+        
+        // Time Picker Dialog
+        if (showTimePicker) {
+            TimePickerDialog(
+                selectedTime = selectedTime,
+                onTimeSelected = { time ->
+                    selectedTime = time
+                    // Only update whenTime if it's currently blank (preserve user input)
+                    if (whenTime.isBlank()) {
+                        whenTime = time.format(DateTimeFormatter.ofPattern("h:mm a"))
+                    }
+                },
+                onDismiss = { showTimePicker = false }
+            )
+        }
     }
 }
