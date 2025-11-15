@@ -16,6 +16,8 @@ import androidx.compose.material.icons.filled.KeyboardVoice
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color.Companion.Red
@@ -401,7 +403,6 @@ fun DatePickerDialog(
                             )
                         }
                         
-                        // Smaller Priority Slider
                         Slider(
                             value = tempMonth,
                             onValueChange = { 
@@ -414,7 +415,7 @@ fun DatePickerDialog(
                             },
                             valueRange = 0f..11f,
                             steps = 10,
-                            modifier = Modifier.weight(0.8f).padding(horizontal = 4.dp), // Smaller - takes less space
+                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                             colors = SliderDefaults.colors(
                                 thumbColor = MaterialTheme.colorScheme.secondary,
                                 activeTrackColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
@@ -522,9 +523,9 @@ fun DatePickerDialog(
                     )
                 }
                 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(20.dp))
                 
-                // Quick Date Selection Buttons (more compact)
+                // Quick Date Selection Buttons
                 Text(
                     text = "Quick Select",
                     style = MaterialTheme.typography.titleSmall,
@@ -945,86 +946,40 @@ fun InputScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
-                    // Single content field - supports both typing and voice (more compact)
-                    OutlinedTextField(
-                        value = content,
-                        onValueChange = { content = it },
-                        label = { Text("What do you need to remember?") },
-                        modifier = Modifier.fillMaxWidth(),
-                        maxLines = 3,
-                        placeholder = { Text("e.g., Call mom at 3pm") }
-                    )
-                    
-                    // Priority selection (moved to main content)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Priority: $selectedPriority",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(end = 8.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        
-                        // Priority Level Slider with Plus/Minus buttons (above tab to speak)
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            horizontalArrangement = Arrangement.SpaceBy(2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Minus button (left side)
-                            IconButton(
-                                onClick = {
-                                    if (selectedPriority > 1) {
-                                        selectedPriority--
-                                    }
-                                },
-                                modifier = Modifier.size(28.dp),
-                                enabled = selectedPriority > 1
-                            ) {
-                                Icon(
-                                    Icons.Default.Remove,
-                                    contentDescription = "Decrease priority",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                            
-                            Spacer(modifier = Modifier.width(4.dp))
-                            
-                            // Priority value display (center)
-                            Text(
-                                text = "$selectedPriority",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(32.dp)
-                            )
-                            
-                            Spacer(modifier = Modifier.width(4.dp))
-                            
-                            // Plus button (right side)
-                            IconButton(
-                                onClick = {
-                                    if (selectedPriority < 10) {
-                                        selectedPriority++
-                                    }
-                                },
-                                modifier = Modifier.size(28.dp),
-                                enabled = selectedPriority < 10
-                            ) {
-                                Icon(
-                                    Icons.Default.Add,
-                                    contentDescription = "Increase priority",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                        }
-                    }
+    // Single content field - supports both typing and voice
+    var content by remember { mutableStateOf("") }
+    var isProcessing by remember { mutableStateOf(false) }
+    var loadedReminder by remember { mutableStateOf<com.reminder.app.data.Reminder?>(null) }
+    
+    // Priority selection
+    var selectedPriority by remember { mutableStateOf(5) }
+    
+    // Trigger configuration state
+    var showTriggerConfig by remember { mutableStateOf(false) }
+    var enableAtDueTime by remember { mutableStateOf(true) }
+    var enableMinutesBefore by remember { mutableStateOf(false) }
+    var minutesBeforeValue by remember { mutableStateOf(15) }
+    var enableHoursBefore by remember { mutableStateOf(false) }
+    var hoursBeforeValue by remember { mutableStateOf(1) }
+    var enableDaysBefore by remember { mutableStateOf(false) }
+    var daysBeforeValue by remember { mutableStateOf(1) }
+    
+    // Enhanced date/time state
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    var selectedTime by remember { mutableStateOf(LocalTime.NOON) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+    var showTimeSuggestions by remember { mutableStateOf(false) }
+    var whenDay by remember { mutableStateOf("") }
+    var whenTime by remember { mutableStateOf("") }
+    
+    // Common time suggestions
+    val timeSuggestions = listOf(
+        "9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM",
+        "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM",
+        "5:00 PM", "6:00 PM", "7:00 PM", "8:00 PM",
+        "Morning", "Afternoon", "Evening", "Night"
+    )
     val priorityOptions = listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
     val priorityLabels = mapOf(
         1 to "Very Low", 2 to "Low", 3 to "Low-Medium", 4 to "Medium-Low",
@@ -1355,7 +1310,7 @@ fun InputScreen(
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
-                // Modern Date Picker (more compact)
+                    // Modern Date Picker
                     OutlinedCard(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1364,10 +1319,6 @@ fun InputScreen(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant
                         )
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1493,45 +1444,89 @@ fun InputScreen(
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
-                    // Priority selector with slider
+                    // Priority selector with slider and +/- buttons
                     Text(
-                        text = "Priority Level: ${priorityLabels[selectedPriority]} ($selectedPriority)",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        text = "Priority: ${priorityLabels[selectedPriority]}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 4.dp)
                     )
                     
-                    Slider(
-                        value = selectedPriority.toFloat(),
-                        onValueChange = { selectedPriority = it.toInt() },
-                        valueRange = 1f..10f,
-                        steps = 8, // 10 values - 2 endpoints = 8 steps
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = SliderDefaults.colors(
-                            thumbColor = when (selectedPriority) {
-                                in 8..10 -> Red
-                                in 6..7 -> Color(0xFFFFA500) // Orange
-                                in 4..5 -> Blue
-                                else -> Green
-                            },
-                            activeTrackColor = when (selectedPriority) {
-                                in 8..10 -> Red.copy(alpha = 0.5f)
-                                in 6..7 -> Color(0xFFFFA500).copy(alpha = 0.5f) // Orange
-                                in 4..5 -> Blue.copy(alpha = 0.5f)
-                                else -> Green.copy(alpha = 0.5f)
-                            }
-                        )
-                    )
-                    
+                    // Compact priority slider with +/- buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("1", style = MaterialTheme.typography.bodySmall)
-                        Text("5", style = MaterialTheme.typography.bodySmall)
-                        Text("10", style = MaterialTheme.typography.bodySmall)
+                        // Minus button (left side)
+                        IconButton(
+                            onClick = {
+                                if (selectedPriority > 1) {
+                                    selectedPriority--
+                                }
+                            },
+                            modifier = Modifier.size(32.dp),
+                            enabled = selectedPriority > 1
+                        ) {
+                            Icon(
+                                Icons.Default.Remove,
+                                contentDescription = "Decrease priority",
+                                tint = if (selectedPriority > 1) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        
+                        // Compact slider in the middle
+                        Slider(
+                            value = selectedPriority.toFloat(),
+                            onValueChange = { selectedPriority = it.toInt() },
+                            valueRange = 1f..10f,
+                            steps = 8,
+                            modifier = Modifier.weight(1f),
+                            colors = SliderDefaults.colors(
+                                thumbColor = when (selectedPriority) {
+                                    in 8..10 -> Red
+                                    in 6..7 -> Color(0xFFFFA500) // Orange
+                                    in 4..5 -> Blue
+                                    else -> Green
+                                },
+                                activeTrackColor = when (selectedPriority) {
+                                    in 8..10 -> Red.copy(alpha = 0.6f)
+                                    in 6..7 -> Color(0xFFFFA500).copy(alpha = 0.6f)
+                                    in 4..5 -> Blue.copy(alpha = 0.6f)
+                                    else -> Green.copy(alpha = 0.6f)
+                                }
+                            )
+                        )
+                        
+                        // Plus button (right side)
+                        IconButton(
+                            onClick = {
+                                if (selectedPriority < 10) {
+                                    selectedPriority++
+                                }
+                            },
+                            modifier = Modifier.size(32.dp),
+                            enabled = selectedPriority < 10
+                        ) {
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = "Increase priority",
+                                tint = if (selectedPriority < 10) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                     
-                    Spacer(modifier = Modifier.height(16.dp))
+                    // Priority value display (centered below)
+                    Text(
+                        text = "$selectedPriority / 10",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                    
+Spacer(modifier = Modifier.height(12.dp))
                     
                     // Trigger Configuration Section
                     Card(
@@ -1675,98 +1670,27 @@ fun InputScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     // Single voice input button - ONE CLICK
-                    // Enhanced Voice Input Button with Active Indicator
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Active indicator - visual sign when voice is active
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .background(
-                                    if (isVoiceActive) 
-                                        MaterialTheme.colorScheme.primary 
-                                    else 
-                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                )
-                                .border(
-                                    width = 2.dp,
-                                    color = if (isVoiceActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "🎤",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (isVoiceActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        
-                        Spacer(modifier = Modifier.width(4.dp))
-                        
-                        // Voice input button - smaller when inactive
-                        Button(
-                            onClick = {
-                                if (isListening) {
-                                    speechManager.stopListening()
-                                    isVoiceActive = false
-                                } else {
-                                    // Try keyboard voice input first (most reliable)
-                                    launchKeyboardVoiceInput()
-                                    // Fallback to direct mic if keyboard doesn't work
-                                    scope.launch {
-                                        kotlinx.coroutines.delay(1000)
-                                        if (content.isBlank()) {
-                                            speechManager.restartSpeechRecognizer()
-                                            speechManager.startListening()
-                                        }
+                    Button(
+                        onClick = {
+                            if (isListening) {
+                                speechManager.stopListening()
+                            } else {
+                                // Try keyboard voice input first (most reliable)
+                                launchKeyboardVoiceInput()
+                                // Fallback to direct mic if keyboard doesn't work
+                                scope.launch {
+                                    kotlinx.coroutines.delay(1000)
+                                    if (content.isBlank()) {
+                                        speechManager.restartSpeechRecognizer()
+                                        speechManager.startListening()
                                     }
-                                    isVoiceActive = true
                                 }
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(if (isVoiceActive) 48.dp else 56.dp), // Smaller when inactive
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isListening) MaterialTheme.colorScheme.error else 
-                                    if (isVoiceActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-                            )
-                        ) {
-                        Icon(
-                            if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
-                            contentDescription = if (isListening) "Stop Recording" else "Start Voice Input",
-                            modifier = Modifier.size(if (isVoiceActive) 16.dp else 20.dp) // Smaller when active
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Column {
-                            Text(
-                                text = speechToText.ifBlank { "Tap to speak" } ?: speechToText,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 2,
-                                modifier = Modifier.weight(1f)
-                            )
-                            
-                            // Plus button for adding to content
-                            IconButton(
-                                onClick = {
-                                    val newText = if (speechToText.isBlank()) content else "$content + $speechToText"
-                                    speechToText = newText
-                                    content = newText
-                                },
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Add,
-                                    contentDescription = "Add to reminder",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(12.dp)
-                                )
                             }
-                        }
-                    }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isListening) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
+                        )
                     ) {
                         Icon(
                             if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
