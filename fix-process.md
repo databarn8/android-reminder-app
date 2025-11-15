@@ -193,6 +193,37 @@ adb install -r apks/app-debug-datetime-save-fixed-20251113_1948.apk
 - **Install Time**: ~3 seconds
 - **Device Compatibility**: Android API 24+ (matches requirements)
 
+### Branch Management Strategy
+**IMPORTANT**: Always create new timestamped work branches for pushes
+
+#### Branch Naming Convention:
+- **Work Branches**: `work-[feature]-YYYY-MM-DD-HHMM`
+- **Fix Branches**: `fix-[issue]-YYYY-MM-DD-HHMM`
+- **Feature Branches**: `feature-[name]-YYYY-MM-DD-HHMM`
+
+#### Examples:
+- `work-datetime-display-fix-2025-11-15-1500`
+- `fix-datetime-save-2025-11-13-1948`
+- `feature-voice-input-2025-11-15-1600`
+
+#### Benefits:
+1. **Easy Rollback**: Can rollback to any specific time/feature
+2. **Clear Tracking**: Branch name tells what and when
+3. **Isolated Work**: Each feature/fix in separate branch
+4. **GitHub Integration**: Easy to create PRs and track progress
+
+#### Workflow:
+1. **Create Branch**: `git checkout -b work-[task]-YYYY-MM-DD-HHMM`
+2. **Make Changes**: Develop and test
+3. **Push Branch**: `git push origin work-[task]-YYYY-MM-DD-HHMM`
+4. **Document**: Add to fix-process.md with timestamp
+5. **Merge**: When complete, merge to main/develop
+6. **Repeat**: Create new branch for next task
+
+#### Current Branch Structure:
+- `fix-datetime-save-2025-11-13-1948` ✅ (datetime save fix)
+- `work-datetime-display-fix-2025-11-15-1500` 🔄 (current work)
+
 ### Lessons Learned
 1. **Clean Rewrite vs Fix**: Sometimes clean rewrite is faster than fixing broken code
 2. **Function Scope**: Helper functions must be outside composables for proper access
