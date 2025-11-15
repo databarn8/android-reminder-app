@@ -38,3 +38,6 @@ A complete Android reminder app with voice input, local storage, and notificatio
 - `NotificationScheduler.kt` - Alarm notifications
 - `CalendarScreen.kt` - Calendar interface
 - `SmartVoiceProcessor.kt` - Advanced voice processing
+
+## Build System Notes
+**IMPORTANT**: Before making any build changes, read `fix-process.md` file first to understand the specific build system fixes and compilation requirements for this project.
