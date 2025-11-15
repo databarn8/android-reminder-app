@@ -945,44 +945,86 @@ fun InputScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
-    // Single content field - supports both typing and voice
-    var content by remember { mutableStateOf("") }
-    var isProcessing by remember { mutableStateOf(false) }
-    var loadedReminder by remember { mutableStateOf<com.reminder.app.data.Reminder?>(null) }
-    
-    // Voice input enhancements
-    var speechToText by remember { mutableStateOf("") }
-    var isVoiceActive by remember { mutableStateOf(false) }
-    
-    // Priority selection
-    var selectedPriority by remember { mutableStateOf(5) }
-    
-    // Trigger configuration state
-    var showTriggerConfig by remember { mutableStateOf(false) }
-    var enableAtDueTime by remember { mutableStateOf(true) }
-    var enableMinutesBefore by remember { mutableStateOf(false) }
-    var minutesBeforeValue by remember { mutableStateOf(15) }
-    var enableHoursBefore by remember { mutableStateOf(false) }
-    var hoursBeforeValue by remember { mutableStateOf(1) }
-    var enableDaysBefore by remember { mutableStateOf(false) }
-    var daysBeforeValue by remember { mutableStateOf(1) }
-    
-    // Enhanced date/time state
-    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
-    var selectedTime by remember { mutableStateOf(LocalTime.NOON) }
-    var showDatePicker by remember { mutableStateOf(false) }
-    var showTimePicker by remember { mutableStateOf(false) }
-    var showTimeSuggestions by remember { mutableStateOf(false) }
-    var whenDay by remember { mutableStateOf("") }
-    var whenTime by remember { mutableStateOf("") }
-    
-    // Common time suggestions
-    val timeSuggestions = listOf(
-        "9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM",
-        "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM",
-        "5:00 PM", "6:00 PM", "7:00 PM", "8:00 PM",
-        "Morning", "Afternoon", "Evening", "Night"
-    )
+                    // Single content field - supports both typing and voice
+                    OutlinedTextField(
+                        value = content,
+                        onValueChange = { content = it },
+                        label = { Text("What do you need to remember?") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 4,
+                        placeholder = { Text("e.g., Call mom tomorrow at 3pm or Buy groceries after work") }
+                    )
+                    
+                    // Priority selection (moved to main content)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Priority: $selectedPriority",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        
+                        // Priority Level Slider with Plus/Minus buttons
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Minus button
+                            IconButton(
+                                onClick = {
+                                    if (selectedPriority > 1) {
+                                        selectedPriority--
+                                    }
+                                },
+                                modifier = Modifier.size(32.dp),
+                                enabled = selectedPriority > 1
+                            ) {
+                                Icon(
+                                    Icons.Default.Remove,
+                                    contentDescription = "Decrease priority",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.width(8.dp))
+                            
+                            // Priority value display
+                            Text(
+                                text = "$selectedPriority",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(40.dp)
+                            )
+                            
+                            Spacer(modifier = Modifier.width(8.dp))
+                            
+                            // Plus button
+                            IconButton(
+                                onClick = {
+                                    if (selectedPriority < 10) {
+                                        selectedPriority++
+                                    }
+                                },
+                                modifier = Modifier.size(32.dp),
+                                enabled = selectedPriority < 10
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Increase priority",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
     val priorityOptions = listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
     val priorityLabels = mapOf(
         1 to "Very Low", 2 to "Low", 3 to "Low-Medium", 4 to "Medium-Low",
