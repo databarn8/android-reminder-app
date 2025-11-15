@@ -122,11 +122,15 @@ fun ReminderListScreen(
             }
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Screen flash overlay for Fresh button
+            ScreenFlashOverlay()
+            
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
             // Search bar
             OutlinedTextField(
                 value = searchQuery,
