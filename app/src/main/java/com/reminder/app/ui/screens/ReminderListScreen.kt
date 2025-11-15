@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,9 +21,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import com.reminder.app.data.Reminder
 import com.reminder.app.utils.EmailService
+import com.reminder.app.utils.ScreenFlashManager
 import com.reminder.app.viewmodel.ReminderViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -86,6 +89,23 @@ fun ReminderListScreen(
                         ) {
                             Text("⚡", style = MaterialTheme.typography.titleLarge)
                             Text("Test", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    IconButton(onClick = { 
+                        android.util.Log.d("FreshButton", "Fresh button clicked - triggering 12 second yellow flash")
+                        ScreenFlashManager.triggerFlash(
+                            context = context,
+                            flashColor = Color.Yellow,
+                            flashDurationMs = 12000, // 12 seconds
+                            flashCount = 1,
+                            intervalMs = 0
+                        )
+                    }) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("🔄", style = MaterialTheme.typography.titleLarge)
+                            Text("Fresh", style = MaterialTheme.typography.labelSmall)
                         }
                     }
                     IconButton(onClick = { /* Search toggle */ }) {
