@@ -152,12 +152,22 @@ fun ReminderListScreen(
             )
             
             // Reminders list
-            Box(modifier = Modifier.weight(1f)) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center)
-                )
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(filteredReminders) { reminder ->
+                    ReminderItem(
+                        reminder = reminder,
+                        onEdit = onEditClick,
+                        onEmail = onEmailClick,
+                        onDelete = { /* Delete action */ }
+                    )
+                }
             }
+            }
+        }
+    }
+}
 
             errorMessage?.let { message ->
                 Card(
