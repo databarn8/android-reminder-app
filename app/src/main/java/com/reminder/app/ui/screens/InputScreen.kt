@@ -1218,10 +1218,10 @@ fun InputScreen(
                                     triggerPoints.add(com.reminder.app.data.TriggerPoint(com.reminder.app.data.TriggerType.MINUTES_BEFORE, minutesBeforeValue))
                                 }
                                 if (enableHoursBefore) {
-                                    triggerPoints.add(com.reminder.app.data.TriggerType.HOURS_BEFORE, hoursBeforeValue))
+                                    triggerPoints.add(com.reminder.app.data.TriggerType.HOURS_BEFORE, hoursBeforeValue)
                                 }
                                 if (enableDaysBefore) {
-                                    triggerPoints.add(com.reminder.app.data.TriggerType.DAYS_BEFORE, daysBeforeValue))
+                                    triggerPoints.add(com.reminder.app.data.TriggerType.DAYS_BEFORE, daysBeforeValue)
                                 }
                                 
                                 // Convert to JSON
