@@ -401,6 +401,7 @@ fun DatePickerDialog(
                             )
                         }
                         
+                        // Smaller Priority Slider
                         Slider(
                             value = tempMonth,
                             onValueChange = { 
@@ -413,7 +414,7 @@ fun DatePickerDialog(
                             },
                             valueRange = 0f..11f,
                             steps = 10,
-                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                            modifier = Modifier.weight(0.8f).padding(horizontal = 4.dp), // Smaller - takes less space
                             colors = SliderDefaults.colors(
                                 thumbColor = MaterialTheme.colorScheme.secondary,
                                 activeTrackColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
@@ -521,7 +522,7 @@ fun DatePickerDialog(
                     )
                 }
                 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 
                 // Quick Date Selection Buttons
                 Text(
@@ -948,6 +949,10 @@ fun InputScreen(
     var content by remember { mutableStateOf("") }
     var isProcessing by remember { mutableStateOf(false) }
     var loadedReminder by remember { mutableStateOf<com.reminder.app.data.Reminder?>(null) }
+    
+    // Voice input enhancements
+    var speechToText by remember { mutableStateOf("") }
+    var isVoiceActive by remember { mutableStateOf(false) }
     
     // Priority selection
     var selectedPriority by remember { mutableStateOf(5) }
@@ -1624,27 +1629,98 @@ fun InputScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     // Single voice input button - ONE CLICK
-                    Button(
-                        onClick = {
-                            if (isListening) {
-                                speechManager.stopListening()
-                            } else {
-                                // Try keyboard voice input first (most reliable)
-                                launchKeyboardVoiceInput()
-                                // Fallback to direct mic if keyboard doesn't work
-                                scope.launch {
-                                    kotlinx.coroutines.delay(1000)
-                                    if (content.isBlank()) {
-                                        speechManager.restartSpeechRecognizer()
-                                        speechManager.startListening()
-                                    }
-                                }
-                            }
-                        },
+                    // Enhanced Voice Input Button with Active Indicator
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isListening) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
+                        horizontalArrangement = Arrangement.SpaceBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Active indicator - visual sign when voice is active
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(
+                                    if (isVoiceActive) 
+                                        MaterialTheme.colorScheme.primary 
+                                    else 
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                )
+                                .border(
+                                    width = 2.dp,
+                                    color = if (isVoiceActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "🎤",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (isVoiceActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.width(4.dp))
+                        
+                        // Voice input button - smaller when inactive
+                        Button(
+                            onClick = {
+                                if (isListening) {
+                                    speechManager.stopListening()
+                                    isVoiceActive = false
+                                } else {
+                                    // Try keyboard voice input first (most reliable)
+                                    launchKeyboardVoiceInput()
+                                    // Fallback to direct mic if keyboard doesn't work
+                                    scope.launch {
+                                        kotlinx.coroutines.delay(1000)
+                                        if (content.isBlank()) {
+                                            speechManager.restartSpeechRecognizer()
+                                            speechManager.startListening()
+                                        }
+                                    }
+                                    isVoiceActive = true
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(if (isVoiceActive) 48.dp else 56.dp), // Smaller when inactive
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isListening) MaterialTheme.colorScheme.error else 
+                                    if (isVoiceActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                            )
+                        ) {
+                        Icon(
+                            if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
+                            contentDescription = if (isListening) "Stop Recording" else "Start Voice Input",
+                            modifier = Modifier.size(if (isVoiceActive) 16.dp else 20.dp) // Smaller when active
                         )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Column {
+                            Text(
+                                text = speechToText.ifBlank { "Tap to speak" } ?: speechToText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 2,
+                                modifier = Modifier.weight(1f)
+                            )
+                            
+                            // Plus button for adding to content
+                            IconButton(
+                                onClick = {
+                                    val newText = if (speechToText.isBlank()) content else "$content + $speechToText"
+                                    speechToText = newText
+                                    content = newText
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Add to reminder",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+                    }
                     ) {
                         Icon(
                             if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
