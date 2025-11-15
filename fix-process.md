@@ -202,9 +202,14 @@ adb install -r apks/app-debug-datetime-save-fixed-20251113_1948.apk
 - **Feature Branches**: `feature-[name]-YYYY-MM-DD-HHMM`
 
 #### Examples:
-- `work-datetime-display-fix-2025-11-15-1500`
+- `work-datetime-display-fix-2025-11-15-1100` (ACTUAL CURRENT TIME)
 - `fix-datetime-save-2025-11-13-1948`
-- `feature-voice-input-2025-11-15-1600`
+- `feature-voice-input-2025-11-15-1100`
+
+#### IMPORTANT: Use ACTUAL Current Time
+- **Command**: `date` (to get current time)
+- **Format**: Use real HHMM from current time, not fixed 1500
+- **Example**: If current time is 11:00 AM, use `1100` not `1500`
 
 #### Benefits:
 1. **Easy Rollback**: Can rollback to any specific time/feature
