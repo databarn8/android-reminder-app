@@ -44,6 +44,8 @@ import com.reminder.app.utils.SpeechManager
 import com.reminder.app.utils.SmartVoiceProcessor
 import com.reminder.app.viewmodel.ReminderViewModel
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 
 // Enhanced extraction functions for common reminder patterns
 
@@ -223,6 +225,15 @@ fun getDaysUntilDayOfWeek(targetDay: Int): Int {
     val currentDay = calendar.get(java.util.Calendar.DAY_OF_WEEK)
     val daysUntil = if (targetDay >= currentDay) targetDay - currentDay else 7 - (currentDay - targetDay)
     return if (daysUntil == 0) 7 else daysUntil // If today, schedule for next week
+}
+
+// Helper function to get the next occurrence of a specific weekday
+fun getNextWeekday(today: LocalDate, targetDay: java.time.DayOfWeek): LocalDate {
+    var current = today
+    while (current.dayOfWeek != targetDay) {
+        current = current.plusDays(1)
+    }
+    return current
 }
 
 // Compact Slider Date Picker Dialog Component
@@ -670,8 +681,8 @@ fun TimePickerDialog(
     onDismiss: () -> Unit
 ) {
     // Directly use selectedTime values - no separate state needed
-    val hour = remember { derivedStateOf { selectedTime.hour.toFloat() } }
-    val minute = remember { derivedStateOf { selectedTime.minute.toFloat() } }
+    var hour by remember { mutableStateOf(selectedTime.hour.toFloat()) }
+    var minute by remember { mutableStateOf(selectedTime.minute.toFloat()) }
     
     android.util.Log.d("TimePickerDialog", "Dialog opened with selectedTime=$selectedTime, hour=$hour, minute=$minute")
     
@@ -754,7 +765,7 @@ fun TimePickerDialog(
                          horizontalArrangement = Arrangement.spacedBy(8.dp)
                      ) {
                          IconButton(
-                             onClick = { 
+                             onClick = {
                                  val newHour = (hour.toInt() - 1).coerceIn(0, 23)
                                  hour = newHour.toFloat()
                              },
@@ -777,9 +788,8 @@ fun TimePickerDialog(
                          )
                          
                          IconButton(
-                             onClick = { 
+                             onClick = {
                                  val newHour = (hour.toInt() + 1).coerceIn(0, 23)
-                                 hour = newHour.toFloat()
                              },
                              modifier = Modifier.size(48.dp)
                          ) {
@@ -816,7 +826,7 @@ fun TimePickerDialog(
                          horizontalArrangement = Arrangement.spacedBy(8.dp)
                      ) {
                          IconButton(
-                             onClick = { 
+                             onClick = {
                                  val newMinute = (minute.toInt() - 1).coerceIn(0, 59)
                                  minute = newMinute.toFloat()
                              },
@@ -839,9 +849,8 @@ fun TimePickerDialog(
                          )
                          
                          IconButton(
-                             onClick = { 
+                             onClick = {
                                  val newMinute = (minute.toInt() + 1).coerceIn(0, 59)
-                                 minute = newMinute.toFloat()
                              },
                              modifier = Modifier.size(48.dp)
                          ) {
@@ -1069,6 +1078,9 @@ fun InputScreen(
                         
                         android.util.Log.d("InputScreen", "Loaded reminder for editing: id=${reminder.id}, reminderTime=${reminder.reminderTime}, whenDay=${reminder.whenDay}, whenTime=${reminder.whenTime}")
                         android.util.Log.d("InputScreen", "Final selectedTime='$selectedTime', selectedDate='$selectedDate'")
+                        
+                        // Force UI update by adding a small delay after setting values
+                        kotlinx.coroutines.delay(50)
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("InputScreen", "Error loading reminder: ${e.message}")
@@ -1085,8 +1097,10 @@ fun InputScreen(
                     // Double-check the data after a short delay to catch any race conditions
                     kotlinx.coroutines.delay(300)
                     val freshReminder = viewModel.getReminderById(id)
-                    if (freshReminder != null && freshReminder.reminderTime != loadedReminder.reminderTime) {
-                        android.util.Log.d("InputScreen", "Detected stale data, reloading: old=${loadedReminder.reminderTime}, new=${freshReminder.reminderTime}")
+                    val currentReminderTime = loadedReminder?.reminderTime ?: 0
+                    val freshReminderTime = freshReminder?.reminderTime ?: 0
+                    if (freshReminder != null && currentReminderTime != freshReminderTime) {
+                        android.util.Log.d("InputScreen", "Detected stale data, reloading: old=${loadedReminder?.reminderTime}, new=${freshReminder.reminderTime}")
                         loadedReminder = freshReminder
                         content = freshReminder.content
                         selectedPriority = freshReminder.importance
@@ -1151,6 +1165,24 @@ fun InputScreen(
                     // Always auto-fill day and time fields when content changes
                     whenDay = extractedDay
                     whenTime = extractedTime
+                    
+                    // Auto-update selectedDate when day info is detected
+                    if (extractedDay.isNotBlank()) {
+                        val today = LocalDate.now()
+                        selectedDate = when (extractedDay.lowercase()) {
+                            "today" -> today
+                            "tomorrow" -> today.plusDays(1)
+                            "monday" -> getNextWeekday(today, java.time.DayOfWeek.MONDAY)
+                            "tuesday" -> getNextWeekday(today, java.time.DayOfWeek.TUESDAY)
+                            "wednesday" -> getNextWeekday(today, java.time.DayOfWeek.WEDNESDAY)
+                            "thursday" -> getNextWeekday(today, java.time.DayOfWeek.THURSDAY)
+                            "friday" -> getNextWeekday(today, java.time.DayOfWeek.FRIDAY)
+                            "saturday" -> getNextWeekday(today, java.time.DayOfWeek.SATURDAY)
+                            "sunday" -> getNextWeekday(today, java.time.DayOfWeek.SUNDAY)
+                            "next week" -> today.plusDays(7)
+                            else -> today
+                        }
+                    }
                     
                     Log.d("InputScreen", "Processed: category='$processedCategory', time='$processedTime', priority='$processedPriority', day='$extractedDay', timeOnly='$extractedTime'")
                 } catch (e: Exception) {
@@ -1218,10 +1250,10 @@ fun InputScreen(
                                     triggerPoints.add(com.reminder.app.data.TriggerPoint(com.reminder.app.data.TriggerType.MINUTES_BEFORE, minutesBeforeValue))
                                 }
                                 if (enableHoursBefore) {
-                                    triggerPoints.add(com.reminder.app.data.TriggerType.HOURS_BEFORE, hoursBeforeValue)
+                                    triggerPoints.add(com.reminder.app.data.TriggerPoint(com.reminder.app.data.TriggerType.HOURS_BEFORE, hoursBeforeValue))
                                 }
                                 if (enableDaysBefore) {
-                                    triggerPoints.add(com.reminder.app.data.TriggerType.DAYS_BEFORE, daysBeforeValue)
+                                    triggerPoints.add(com.reminder.app.data.TriggerPoint(com.reminder.app.data.TriggerType.DAYS_BEFORE, daysBeforeValue))
                                 }
                                 
                                 // Convert to JSON
@@ -1256,7 +1288,9 @@ fun InputScreen(
                                     android.util.Log.d("InputScreen", "Updating reminder: id=${reminderId}, newReminderTime=${reminder.reminderTime}, whenDay=${whenDay}, whenTime=${whenTime}")
                                     viewModel.updateReminder(updatedReminder)
                                     // Add a small delay before navigating back to ensure database update is complete
-                                    kotlinx.coroutines.delay(200)
+                                    scope.launch {
+                                        kotlinx.coroutines.delay(200)
+                                    }
                                 } else {
                                     // Add new reminder
                                     android.util.Log.d("InputScreen", "Adding new reminder: reminderTime=${reminder.reminderTime}, whenDay=${whenDay}, whenTime=${whenTime}")
@@ -1279,9 +1313,9 @@ fun InputScreen(
                 .padding(paddingValues)
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Main Voice Input Section
+            // Main Voice Input Section - Moved voice button to top
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -1296,7 +1330,56 @@ fun InputScreen(
                         style = MaterialTheme.typography.titleMedium
                     )
                     
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Single voice input button - MOVED TO TOP
+                    Button(
+                        onClick = {
+                            if (isListening) {
+                                speechManager.stopListening()
+                            } else {
+                                // Try keyboard voice input first (most reliable)
+                                launchKeyboardVoiceInput()
+                                // Fallback to direct mic if keyboard doesn't work
+                                scope.launch {
+                                    kotlinx.coroutines.delay(1000)
+                                    if (content.isBlank()) {
+                                        speechManager.restartSpeechRecognizer()
+                                        speechManager.startListening()
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isListening) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
+                        )
+                    ) {
+                        Icon(
+                            if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
+                            contentDescription = if (isListening) "Stop Recording" else "Start Voice Input",
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (isListening) "⏹️ Stop Recording" else "🎤 Tap to Speak",
+                            color = MaterialTheme.colorScheme.onSecondary
+                        )
+                    }
+                    
+                    if (isListening) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            text = "Listening...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
                     
                     // Single content field (typing + voice)
                     OutlinedTextField(
@@ -1304,11 +1387,11 @@ fun InputScreen(
                         onValueChange = { content = it },
                         label = { Text("What do you need to remember?") },
                         modifier = Modifier.fillMaxWidth(),
-                        maxLines = 4,
-                        placeholder = { Text("e.g., Call mom tomorrow at 3pm or Buy groceries after work") }
+                        maxLines = 3, // Reduced from 4 to save space
+                        placeholder = { Text("e.g., Call mom tomorrow at 3pm") }
                     )
                     
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     
                     // Modern Date Picker
                     OutlinedCard(
@@ -1333,7 +1416,22 @@ fun InputScreen(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 Text(
-                                    text = selectedDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
+                                    text = if (reminderId != null && loadedReminder != null) {
+                                        // Show reminder date when editing
+                                        loadedReminder?.let { reminder ->
+                                            try {
+                                                val reminderDateTime = java.time.Instant.ofEpochMilli(reminder.reminderTime)
+                                                    .atZone(java.time.ZoneId.systemDefault())
+                                                    .toLocalDateTime()
+                                                reminderDateTime.toLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+                                            } catch (e: Exception) {
+                                                selectedDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+                                            }
+                                        } ?: selectedDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+                                    } else {
+                                        // Show selected date for new reminders
+                                        selectedDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+                                    },
                                     style = MaterialTheme.typography.bodyLarge
                                 )
                             }
@@ -1370,7 +1468,22 @@ fun InputScreen(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 Text(
-                                    text = selectedTime.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)),
+                                    text = if (reminderId != null && loadedReminder != null) {
+                                        // Show reminder time when editing
+                                        loadedReminder?.let { reminder ->
+                                            try {
+                                                val reminderDateTime = java.time.Instant.ofEpochMilli(reminder.reminderTime)
+                                                    .atZone(java.time.ZoneId.systemDefault())
+                                                    .toLocalDateTime()
+                                                reminderDateTime.toLocalTime().format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+                                            } catch (e: Exception) {
+                                                selectedTime.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+                                            }
+                                        } ?: selectedTime.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+                                    } else {
+                                        // Show selected time for new reminders
+                                        selectedTime.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+                                    },
                                     style = MaterialTheme.typography.bodyLarge
                                 )
                             }
@@ -1425,16 +1538,16 @@ fun InputScreen(
                                         val timePattern = Regex("(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?", RegexOption.IGNORE_CASE)
                                         val match = timePattern.find(suggestion)
                                         if (match != null) {
-                                            val hour = match.groupValues[1].toInt()
-                                            val minute = match.groupValues[2].takeIf { it.isNotBlank() }?.toInt() ?: 0
-                                            val ampm = match.groupValues[3].lowercase()
+                                            val hour = match.groupValues[1].toIntOrNull() ?: 0
+                                            val minute = match.groupValues[2].takeIf { it.isNotBlank() }?.toIntOrNull() ?: 0
+                                            val ampm = match.groupValues.getOrNull(3)?.lowercase()
                                             
                                             val parsedHour = when {
                                                 ampm == "am" -> if (hour == 12) 0 else hour
                                                 ampm == "pm" -> if (hour == 12) 12 else hour + 12
                                                 else -> hour
                                             }
-                                            selectedTime = LocalTime.of(parsedHour, minute)
+                                            selectedTime = LocalTime.of(parsedHour.coerceIn(0, 23), minute.coerceIn(0, 59))
                                         }
                                     }
                                 )
@@ -1526,9 +1639,7 @@ fun InputScreen(
                         modifier = Modifier.align(Alignment.CenterHorizontally)
                     )
                     
-Spacer(modifier = Modifier.height(12.dp))
-                    
-                    // Trigger Configuration Section
+                    // Compact Trigger Configuration Section
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
@@ -1536,7 +1647,7 @@ Spacer(modifier = Modifier.height(12.dp))
                         )
                     ) {
                         Column(
-                            modifier = Modifier.padding(16.dp)
+                            modifier = Modifier.padding(12.dp) // Reduced padding
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1545,18 +1656,18 @@ Spacer(modifier = Modifier.height(12.dp))
                             ) {
                                 Text(
                                     text = "⏰ Alert Settings",
-                                    style = MaterialTheme.typography.titleMedium,
+                                    style = MaterialTheme.typography.titleSmall, // Reduced text size
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 TextButton(
                                     onClick = { showTriggerConfig = !showTriggerConfig }
                                 ) {
-                                    Text(if (showTriggerConfig) "Hide" else "Configure")
+                                    Text(if (showTriggerConfig) "Hide" else "Configure", fontSize = 12.sp)
                                 }
                             }
                             
                             if (showTriggerConfig) {
-                                Spacer(modifier = Modifier.height(12.dp))
+                                Spacer(modifier = Modifier.height(8.dp)) // Reduced spacing
                                 
                                 // At Due Time
                                 Row(
@@ -1565,12 +1676,13 @@ Spacer(modifier = Modifier.height(12.dp))
                                 ) {
                                     Checkbox(
                                         checked = enableAtDueTime,
-                                        onCheckedChange = { enableAtDueTime = it }
+                                        onCheckedChange = { enableAtDueTime = it },
+                                        modifier = Modifier.size(16.dp) // Smaller checkbox
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "At due time",
-                                        style = MaterialTheme.typography.bodyMedium
+                                        style = MaterialTheme.typography.bodySmall // Smaller text
                                     )
                                 }
                                 
@@ -1581,14 +1693,15 @@ Spacer(modifier = Modifier.height(12.dp))
                                 ) {
                                     Checkbox(
                                         checked = enableMinutesBefore,
-                                        onCheckedChange = { enableMinutesBefore = it }
+                                        onCheckedChange = { enableMinutesBefore = it },
+                                        modifier = Modifier.size(16.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "Minutes before:",
-                                        style = MaterialTheme.typography.bodyMedium
+                                        style = MaterialTheme.typography.bodySmall
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Slider(
                                         value = minutesBeforeValue.toFloat(),
                                         onValueChange = { minutesBeforeValue = it.toInt() },
@@ -1600,7 +1713,7 @@ Spacer(modifier = Modifier.height(12.dp))
                                     Text(
                                         text = "${minutesBeforeValue}m",
                                         style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.width(30.dp)
+                                        modifier = Modifier.width(25.dp) // Reduced width
                                     )
                                 }
                                 
@@ -1611,14 +1724,15 @@ Spacer(modifier = Modifier.height(12.dp))
                                 ) {
                                     Checkbox(
                                         checked = enableHoursBefore,
-                                        onCheckedChange = { enableHoursBefore = it }
+                                        onCheckedChange = { enableHoursBefore = it },
+                                        modifier = Modifier.size(16.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "Hours before:",
-                                        style = MaterialTheme.typography.bodyMedium
+                                        style = MaterialTheme.typography.bodySmall
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Slider(
                                         value = hoursBeforeValue.toFloat(),
                                         onValueChange = { hoursBeforeValue = it.toInt() },
@@ -1630,7 +1744,7 @@ Spacer(modifier = Modifier.height(12.dp))
                                     Text(
                                         text = "${hoursBeforeValue}h",
                                         style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.width(30.dp)
+                                        modifier = Modifier.width(25.dp)
                                     )
                                 }
                                 
@@ -1641,14 +1755,15 @@ Spacer(modifier = Modifier.height(12.dp))
                                 ) {
                                     Checkbox(
                                         checked = enableDaysBefore,
-                                        onCheckedChange = { enableDaysBefore = it }
+                                        onCheckedChange = { enableDaysBefore = it },
+                                        modifier = Modifier.size(16.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "Days before:",
-                                        style = MaterialTheme.typography.bodyMedium
+                                        style = MaterialTheme.typography.bodySmall
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Slider(
                                         value = daysBeforeValue.toFloat(),
                                         onValueChange = { daysBeforeValue = it.toInt() },
@@ -1660,81 +1775,29 @@ Spacer(modifier = Modifier.height(12.dp))
                                     Text(
                                         text = "${daysBeforeValue}d",
                                         style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.width(30.dp)
+                                        modifier = Modifier.width(25.dp)
                                     )
                                 }
                             }
                         }
                     }
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    // Single voice input button - ONE CLICK
-                    Button(
-                        onClick = {
-                            if (isListening) {
-                                speechManager.stopListening()
-                            } else {
-                                // Try keyboard voice input first (most reliable)
-                                launchKeyboardVoiceInput()
-                                // Fallback to direct mic if keyboard doesn't work
-                                scope.launch {
-                                    kotlinx.coroutines.delay(1000)
-                                    if (content.isBlank()) {
-                                        speechManager.restartSpeechRecognizer()
-                                        speechManager.startListening()
-                                    }
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isListening) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
-                        )
-                    ) {
-                        Icon(
-                            if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
-                            contentDescription = if (isListening) "Stop Recording" else "Start Voice Input",
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (isListening) "⏹️ Stop Recording" else "🎤 Tap to Speak",
-                            color = MaterialTheme.colorScheme.onSecondary
-                        )
-                    }
-                    
-                    if (isListening) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Text(
-                            text = "Listening...",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
                 }
             }
             
-            // Processing indicator
+            // Processing indicator - More compact
             if (isProcessing) {
-                Card(
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        CircularProgressIndicator()
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("🧠 Processing Your Request...")
-                    }
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("🧠 Processing...", style = MaterialTheme.typography.bodySmall)
                 }
             }
             
-            // Simple Analysis (shows extraction)
+            // Compact Analysis (shows extraction)
             if (content.isNotBlank()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -1743,8 +1806,8 @@ Spacer(modifier = Modifier.height(12.dp))
                     )
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        modifier = Modifier.padding(12.dp), // Reduced padding
+                        verticalArrangement = Arrangement.spacedBy(2.dp) // Reduced spacing
                     ) {
                         Text(
                             text = "🧠 Quick Analysis",
@@ -1752,35 +1815,46 @@ Spacer(modifier = Modifier.height(12.dp))
                         )
                         
                         Text(
-                            text = "📝 Task: ${content.replace(Regex("(remind me to|remember to)"), "").trim()}",
-                            style = MaterialTheme.typography.bodyMedium
+                            text = "📝 ${content.replace(Regex("(remind me to|remember to)"), "").trim()}",
+                            style = MaterialTheme.typography.bodySmall, // Smaller text
+                            maxLines = 1
                         )
                         
-                        Text(
-                            text = "📁 Category: ${extractCategory(content)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "📁 ${extractCategory(content)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            
+                            Text(
+                                text = "🔥 ${extractPriority(content)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = when (extractPriority(content)) {
+                                    "High" -> MaterialTheme.colorScheme.error
+                                    "Medium" -> MaterialTheme.colorScheme.primary
+                                    else -> MaterialTheme.colorScheme.secondary
+                                }
+                            )
+                        }
                         
-                        Text(
-                            text = "📅 Day: ${if (whenDay.isNotBlank()) whenDay else "Not specified"}",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        
-                        Text(
-                            text = "⏰ Time: ${if (whenTime.isNotBlank()) whenTime else "Not specified"}",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        
-                        Text(
-                            text = "🔥 Priority: ${extractPriority(content)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = when (extractPriority(content)) {
-                                "High" -> MaterialTheme.colorScheme.error
-                                "Medium" -> MaterialTheme.colorScheme.primary
-                                else -> MaterialTheme.colorScheme.secondary
-                            }
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "📅 ${if (whenDay.isNotBlank()) whenDay else "No day"}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            
+                            Text(
+                                text = "⏰ ${if (whenTime.isNotBlank()) whenTime else "No time"}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                         
                         if (showTriggerConfig) {
                             val triggerSummary = mutableListOf<String>()
@@ -1791,9 +1865,10 @@ Spacer(modifier = Modifier.height(12.dp))
                             
                             if (triggerSummary.isNotEmpty()) {
                                 Text(
-                                    text = "⏰ Alerts: ${triggerSummary.joinToString(", ")}",
+                                    text = "⏰ ${triggerSummary.joinToString(", ")}",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.tertiary
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    maxLines = 1
                                 )
                             }
                         }
