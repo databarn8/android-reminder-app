@@ -2,6 +2,7 @@ package com.reminder.app.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.reminder.app.data.RepeatType
 
 enum class TriggerType {
     AT_DUE_TIME,           // Exactly at due time
@@ -45,7 +46,7 @@ data class TriggerPoint(
 
 @Entity(tableName = "reminders")
 data class Reminder(
-    @PrimaryKey(autoGenerate = true) 
+    @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
     val content: String, // Only content field (no title)
     val category: String,
@@ -59,7 +60,9 @@ data class Reminder(
     val createdAt: Long = System.currentTimeMillis(),
     val voiceInput: String? = null, // Raw voice input for future processing
     val isProcessed: Boolean = false, // Whether voice data has been parsed
-    val triggerPoints: String? = null // JSON string of trigger points, defaults to AT_DUE_TIME if null
+    val triggerPoints: String? = null, // JSON string of trigger points, defaults to AT_DUE_TIME if null
+    val repeatPattern: String? = null, // JSON string for RepeatPattern data structure
+    val alertConfig: String? = null // JSON string for AlertConfig data structure
 ) {
     fun getTriggerPointsList(): List<TriggerPoint> {
         return try {
@@ -72,6 +75,139 @@ data class Reminder(
         } catch (e: Exception) {
             listOf(TriggerPoint(TriggerType.AT_DUE_TIME))
         }
+    }
+    
+    // Helper methods for new alert configuration
+    fun getAlertConfigData(): AlertConfig {
+        return try {
+            if (alertConfig.isNullOrBlank()) {
+                AlertConfig() // Default configuration
+            } else {
+                AlertConfig.fromJson(alertConfig)
+            }
+        } catch (e: Exception) {
+            AlertConfig() // Fallback to default
+        }
+    }
+    
+    fun getRepeatPatternData(): RepeatPattern {
+        return try {
+            if (repeatPattern.isNullOrBlank()) {
+                // Convert legacy repeatType to new RepeatPattern
+                val legacyType = when (repeatType.lowercase()) {
+                    "daily" -> RepeatType.DAILY
+                    "weekly" -> RepeatType.WEEKLY
+                    "monthly" -> RepeatType.MONTHLY
+                    "yearly" -> RepeatType.YEARLY
+                    else -> RepeatType.NONE
+                }
+                RepeatPattern(type = legacyType, interval = repeatInterval)
+            } else {
+                RepeatPattern.fromJson(repeatPattern)
+            }
+        } catch (e: Exception) {
+            RepeatPattern() // Fallback to default
+        }
+    }
+    
+    // Helper method to get next occurrence based on repeat pattern
+    fun getNextOccurrence(afterDate: java.time.LocalDateTime = java.time.LocalDateTime.now()): java.time.LocalDateTime? {
+        val pattern = getRepeatPatternData()
+        if (pattern.type == RepeatType.NONE) return null
+        
+        val current = java.time.LocalDateTime.ofInstant(
+            java.time.Instant.ofEpochMilli(reminderTime),
+            java.time.ZoneId.systemDefault()
+        )
+        
+        return when (pattern.type) {
+            RepeatType.DAILY -> {
+                var next = current
+                while (!next.isAfter(afterDate)) {
+                    next = next.plusDays(pattern.interval.toLong())
+                }
+                next
+            }
+            RepeatType.WEEKLY -> {
+                var next = current
+                while (!next.isAfter(afterDate)) {
+                    next = next.plusWeeks(pattern.interval.toLong())
+                }
+                next
+            }
+            RepeatType.MONTHLY -> {
+                var next = current
+                while (!next.isAfter(afterDate)) {
+                    next = next.plusMonths(pattern.interval.toLong())
+                }
+                next
+            }
+            RepeatType.YEARLY -> {
+                var next = current
+                while (!next.isAfter(afterDate)) {
+                    next = next.plusYears(pattern.interval.toLong())
+                }
+                next
+            }
+            RepeatType.CUSTOM -> {
+                // For custom patterns, use daysOfWeek if specified
+                if (pattern.daysOfWeek != null) {
+                    var next = current
+                    while (!next.isAfter(afterDate)) {
+                        next = next.plusDays(1)
+                        // Find next matching day of week
+                        while (next.dayOfWeek !in pattern.daysOfWeek!!) {
+                            next = next.plusDays(1)
+                        }
+                    }
+                    next
+                } else {
+                    current.plusDays(pattern.interval.toLong())
+                }
+            }
+            else -> null
+        }
+    }
+    
+    // Helper method to get all future occurrences (up to a limit)
+    fun getFutureOccurrences(limit: Int = 10): List<java.time.LocalDateTime> {
+        val pattern = getRepeatPatternData()
+        if (pattern.type == RepeatType.NONE) return emptyList()
+        
+        val occurrences = mutableListOf<java.time.LocalDateTime>()
+        val current = java.time.LocalDateTime.ofInstant(
+            java.time.Instant.ofEpochMilli(reminderTime),
+            java.time.ZoneId.systemDefault()
+        )
+        
+        var next = current
+        val now = java.time.LocalDateTime.now()
+        
+        while (occurrences.size < limit && (pattern.endDate == null || next.isBefore(pattern.endDate.atStartOfDay()))) {
+            if (next.isAfter(now)) {
+                occurrences.add(next)
+            }
+            next = when (pattern.type) {
+                RepeatType.DAILY -> next.plusDays(pattern.interval.toLong())
+                RepeatType.WEEKLY -> next.plusWeeks(pattern.interval.toLong())
+                RepeatType.MONTHLY -> next.plusMonths(pattern.interval.toLong())
+                RepeatType.YEARLY -> next.plusYears(pattern.interval.toLong())
+                RepeatType.CUSTOM -> {
+                    if (pattern.daysOfWeek != null) {
+                        var tempNext = next.plusDays(1)
+                        while (tempNext.dayOfWeek !in pattern.daysOfWeek!!) {
+                            tempNext = tempNext.plusDays(1)
+                        }
+                        tempNext
+                    } else {
+                        next.plusDays(pattern.interval.toLong())
+                    }
+                }
+                else -> break
+            }
+        }
+        
+        return occurrences
     }
     
     private fun parseTriggerPointsFromJson(json: String): List<TriggerPoint> {

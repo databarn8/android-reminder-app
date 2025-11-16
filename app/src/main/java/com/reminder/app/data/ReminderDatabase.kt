@@ -5,7 +5,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import android.content.Context
 
-@Database(entities = [Reminder::class], version = 10, exportSchema = false)
+@Database(entities = [Reminder::class], version = 11, exportSchema = false)
 abstract class ReminderDatabase : RoomDatabase() {
     abstract fun reminderDao(): ReminderDao
 
@@ -24,6 +24,12 @@ abstract class ReminderDatabase : RoomDatabase() {
                 INSTANCE = instance
                 instance
             }
+        }
+        
+        // Helper function to clear database for debugging
+        fun clearDatabase(context: Context) {
+            context.deleteDatabase("reminder_database")
+            INSTANCE = null
         }
     }
 }

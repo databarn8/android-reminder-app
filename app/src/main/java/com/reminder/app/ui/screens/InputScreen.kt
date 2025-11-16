@@ -43,6 +43,10 @@ import android.util.Log
 import com.reminder.app.utils.SpeechManager
 import com.reminder.app.utils.SmartVoiceProcessor
 import com.reminder.app.viewmodel.ReminderViewModel
+import com.reminder.app.ui.components.AlertSettingsSection
+import com.reminder.app.data.AlertConfig
+import com.reminder.app.data.RepeatPattern
+import com.reminder.app.data.toJson
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -963,15 +967,9 @@ fun InputScreen(
     // Priority selection
     var selectedPriority by remember { mutableStateOf(5) }
     
-    // Trigger configuration state
-    var showTriggerConfig by remember { mutableStateOf(false) }
-    var enableAtDueTime by remember { mutableStateOf(true) }
-    var enableMinutesBefore by remember { mutableStateOf(false) }
-    var minutesBeforeValue by remember { mutableStateOf(15) }
-    var enableHoursBefore by remember { mutableStateOf(false) }
-    var hoursBeforeValue by remember { mutableStateOf(1) }
-    var enableDaysBefore by remember { mutableStateOf(false) }
-    var daysBeforeValue by remember { mutableStateOf(1) }
+    // Enhanced alert configuration state
+    var alertConfig by remember { mutableStateOf(AlertConfig()) }
+    var repeatPattern by remember { mutableStateOf(RepeatPattern()) }
     
     // Enhanced date/time state
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
@@ -1010,7 +1008,10 @@ fun InputScreen(
                         selectedPriority = reminder.importance
                         whenDay = reminder.whenDay ?: ""
                         whenTime = reminder.whenTime ?: ""
+                        alertConfig = reminder.getAlertConfigData()
+                        repeatPattern = reminder.getRepeatPatternData()
                         android.util.Log.d("InputScreen", "Loaded whenDay='$whenDay', whenTime='$whenTime' from database")
+                        android.util.Log.d("InputScreen", "Loaded alertConfig=${alertConfig.alertType}, repeatPattern=${repeatPattern.type}")
                         
                         // Restore selectedDate and selectedTime from reminderTime
                         try {
@@ -1106,6 +1107,8 @@ fun InputScreen(
                         selectedPriority = freshReminder.importance
                         whenDay = freshReminder.whenDay ?: ""
                         whenTime = freshReminder.whenTime ?: ""
+                        alertConfig = freshReminder.getAlertConfigData()
+                        repeatPattern = freshReminder.getRepeatPatternData()
                         
                         // Update date/time fields
                         try {
@@ -1241,34 +1244,9 @@ fun InputScreen(
                                     whenTime = selectedTime.format(DateTimeFormatter.ofPattern("h:mm a"))
                                 }
                                 
-                                // Build trigger points JSON
-                                val triggerPoints = mutableListOf<com.reminder.app.data.TriggerPoint>()
-                                if (enableAtDueTime) {
-                                    triggerPoints.add(com.reminder.app.data.TriggerPoint(com.reminder.app.data.TriggerType.AT_DUE_TIME))
-                                }
-                                if (enableMinutesBefore) {
-                                    triggerPoints.add(com.reminder.app.data.TriggerPoint(com.reminder.app.data.TriggerType.MINUTES_BEFORE, minutesBeforeValue))
-                                }
-                                if (enableHoursBefore) {
-                                    triggerPoints.add(com.reminder.app.data.TriggerPoint(com.reminder.app.data.TriggerType.HOURS_BEFORE, hoursBeforeValue))
-                                }
-                                if (enableDaysBefore) {
-                                    triggerPoints.add(com.reminder.app.data.TriggerPoint(com.reminder.app.data.TriggerType.DAYS_BEFORE, daysBeforeValue))
-                                }
-                                
-                                // Convert to JSON
-                                val triggerPointsJson = org.json.JSONArray().apply {
-                                    triggerPoints.forEach { trigger ->
-                                        put(org.json.JSONObject().apply {
-                                            put("type", trigger.type.name)
-                                            put("value", trigger.value)
-                                            put("customOffsetMs", trigger.customOffsetMs)
-                                            put("enableFlash", true)
-                                            put("enableSound", true)
-                                            put("enableVibration", true)
-                                        })
-                                    }
-                                }.toString()
+                                // Use new alert configuration and repeat pattern
+                                val alertConfigJson = alertConfig.toJson()
+                                val repeatPatternJson = repeatPattern.toJson()
                                 
                                 val reminder = com.reminder.app.data.Reminder(
                                     content = content,
@@ -1279,7 +1257,9 @@ fun InputScreen(
                                     whenTime = whenTime.ifBlank { null },
                                     voiceInput = content,
                                     isProcessed = true,
-                                    triggerPoints = triggerPointsJson
+                                    triggerPoints = null, // Deprecated, using alertConfig instead
+                                    alertConfig = alertConfigJson,
+                                    repeatPattern = repeatPatternJson
                                 )
                                 
                                 if (reminderId != null) {
@@ -1609,148 +1589,13 @@ fun InputScreen(
                         modifier = Modifier.align(Alignment.CenterHorizontally)
                     )
                     
-                    // Compact Trigger Configuration Section
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp) // Reduced padding
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "⏰ Alert Settings",
-                                    style = MaterialTheme.typography.titleSmall, // Reduced text size
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                TextButton(
-                                    onClick = { showTriggerConfig = !showTriggerConfig }
-                                ) {
-                                    Text(if (showTriggerConfig) "Hide" else "Configure", fontSize = 12.sp)
-                                }
-                            }
-                            
-                            if (showTriggerConfig) {
-                                Spacer(modifier = Modifier.height(8.dp)) // Reduced spacing
-                                
-                                // At Due Time
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = enableAtDueTime,
-                                        onCheckedChange = { enableAtDueTime = it },
-                                        modifier = Modifier.size(16.dp) // Smaller checkbox
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "At due time",
-                                        style = MaterialTheme.typography.bodySmall // Smaller text
-                                    )
-                                }
-                                
-                                // Minutes Before
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = enableMinutesBefore,
-                                        onCheckedChange = { enableMinutesBefore = it },
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Minutes before:",
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Slider(
-                                        value = minutesBeforeValue.toFloat(),
-                                        onValueChange = { minutesBeforeValue = it.toInt() },
-                                        valueRange = 5f..60f,
-                                        steps = 11,
-                                        modifier = Modifier.weight(1f),
-                                        enabled = enableMinutesBefore
-                                    )
-                                    Text(
-                                        text = "${minutesBeforeValue}m",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.width(25.dp) // Reduced width
-                                    )
-                                }
-                                
-                                // Hours Before
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = enableHoursBefore,
-                                        onCheckedChange = { enableHoursBefore = it },
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Hours before:",
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Slider(
-                                        value = hoursBeforeValue.toFloat(),
-                                        onValueChange = { hoursBeforeValue = it.toInt() },
-                                        valueRange = 1f..24f,
-                                        steps = 22,
-                                        modifier = Modifier.weight(1f),
-                                        enabled = enableHoursBefore
-                                    )
-                                    Text(
-                                        text = "${hoursBeforeValue}h",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.width(25.dp)
-                                    )
-                                }
-                                
-                                // Days Before
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = enableDaysBefore,
-                                        onCheckedChange = { enableDaysBefore = it },
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Days before:",
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Slider(
-                                        value = daysBeforeValue.toFloat(),
-                                        onValueChange = { daysBeforeValue = it.toInt() },
-                                        valueRange = 1f..7f,
-                                        steps = 5,
-                                        modifier = Modifier.weight(1f),
-                                        enabled = enableDaysBefore
-                                    )
-                                    Text(
-                                        text = "${daysBeforeValue}d",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.width(25.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    // Enhanced Alert Settings Section
+                    AlertSettingsSection(
+                        alertConfig = alertConfig,
+                        repeatPattern = repeatPattern,
+                        onAlertConfigChange = { alertConfig = it },
+                        onRepeatPatternChange = { repeatPattern = it }
+                    )
                 }
             }
             
@@ -1826,22 +1671,6 @@ fun InputScreen(
                             )
                         }
                         
-                        if (showTriggerConfig) {
-                            val triggerSummary = mutableListOf<String>()
-                            if (enableAtDueTime) triggerSummary.add("At due time")
-                            if (enableMinutesBefore) triggerSummary.add("${minutesBeforeValue}m before")
-                            if (enableHoursBefore) triggerSummary.add("${hoursBeforeValue}h before")
-                            if (enableDaysBefore) triggerSummary.add("${daysBeforeValue}d before")
-                            
-                            if (triggerSummary.isNotEmpty()) {
-                                Text(
-                                    text = "⏰ ${triggerSummary.joinToString(", ")}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.tertiary,
-                                    maxLines = 1
-                                )
-                            }
-                        }
                     }
                 }
             }
