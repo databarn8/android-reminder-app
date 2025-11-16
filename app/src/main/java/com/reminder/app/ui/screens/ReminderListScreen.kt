@@ -105,7 +105,7 @@ fun ReminderListScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .padding(paddingValues)
         ) {
             // Search bar
             OutlinedTextField(
@@ -113,8 +113,8 @@ fun ReminderListScreen(
                 onValueChange = { searchQuery = it },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp),
-                placeholder = { Text("Search...") },
+                    .padding(16.dp),
+                placeholder = { Text("Search reminders...") },
                 leadingIcon = {
                     Icon(Icons.Default.Search, contentDescription = "Search")
                 },
@@ -128,10 +128,20 @@ fun ReminderListScreen(
             )
             
             // Reminders list
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(4.dp)
-            ) {
+            Box(modifier = Modifier.weight(1f)) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+
+            errorMessage?.let { message ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .align(Alignment.TopCenter)
+                ) {
                     Text(
                         text = message,
                         modifier = Modifier.padding(16.dp),
@@ -203,10 +213,9 @@ fun ReminderCard(
             ) {
                 Text(
                     text = reminder.content,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 2
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
                 )
                 
                 Row {
@@ -214,8 +223,7 @@ fun ReminderCard(
                         Icon(
                             Icons.Default.Edit,
                             contentDescription = "Edit",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                     
@@ -223,8 +231,7 @@ fun ReminderCard(
                         Icon(
                             Icons.Default.Email,
                             contentDescription = "Email",
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(16.dp)
+                            tint = MaterialTheme.colorScheme.secondary
                         )
                     }
                     
@@ -232,8 +239,7 @@ fun ReminderCard(
                         Icon(
                             Icons.Default.Delete,
                             contentDescription = "Delete",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(16.dp)
+                            tint = MaterialTheme.colorScheme.error
                         )
                     }
                 }
@@ -241,20 +247,17 @@ fun ReminderCard(
             
             Spacer(modifier = Modifier.height(4.dp))
             
-            // Display day and time fields
-            if (reminder.whenDay.isNullOrBlank() && reminder.whenTime.isNullOrBlank()) {
-                Text(
-                    text = "⚠️ No time",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            } else {
-                Text(
-                    text = dateFormat.format(Date(reminder.reminderTime)),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            // Display day and time fields prominently
+            if (reminder.whenDay?.isNotBlank() == true || reminder.whenTime?.isNotBlank() == true) {
+                reminder.whenDay?.let { day ->
+                    if (day.isNotBlank()) {
+                        Text(
+                            text = "📅 $day",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.secondary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
                 reminder.whenTime?.let { time ->
                     if (time.isNotBlank()) {
@@ -266,7 +269,7 @@ fun ReminderCard(
                         )
                     }
                 }
-            Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
             }
             
             Text(
