@@ -1221,33 +1221,16 @@ fun InputScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onCalendarClick) {
-                        Icon(Icons.Default.CalendarMonth, contentDescription = "Calendar")
-                    }
-                }
-            )
-        },
-        bottomBar = {
-            // Fixed bottom bar with Save button to ensure it's always visible
-            Surface(
-                shadowElevation = 8.dp,
-                tonalElevation = 2.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Configure button
-                    OutlinedButton(
-                        onClick = { showAlertSettings = true },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("⚙️ Configure")
+                    // Configure button in top bar
+                    IconButton(onClick = { showAlertSettings = true }) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = "Configure Alerts",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
                     }
                     
-                    // Save button
+                    // Save button in top bar
                     Button(
                         onClick = {
                             if (content.isNotBlank()) {
@@ -1305,13 +1288,16 @@ fun InputScreen(
                                 onBack()
                             }
                         },
-                        enabled = content.isNotBlank() && !isProcessing,
-                        modifier = Modifier.weight(1f)
+                        enabled = content.isNotBlank() && !isProcessing
                     ) {
                         Text("💾 Save")
                     }
+                    
+                    IconButton(onClick = onCalendarClick) {
+                        Icon(Icons.Default.CalendarMonth, contentDescription = "Calendar")
+                    }
                 }
-            }
+            )
         }
     ) { paddingValues ->
         Column(
@@ -1319,7 +1305,6 @@ fun InputScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(16.dp)
-                .padding(bottom = 80.dp) // Add padding for bottom bar
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -1640,19 +1625,10 @@ fun InputScreen(
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                     Text(
-                                        text = "Tap Configure to customize alerts",
+                                        text = "Tap ⚙️ in top bar to customize alerts",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                }
-                                
-                                Button(
-                                    onClick = { showAlertSettings = true },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.secondary
-                                    )
-                                ) {
-                                    Text("Configure", fontSize = 12.sp)
                                 }
                             }
                             
