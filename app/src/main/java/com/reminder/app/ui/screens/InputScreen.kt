@@ -956,6 +956,8 @@ fun InputScreen(
     onConfirm: (String, Long) -> Unit,
     onCalendarClick: () -> Unit = {}
 ) {
+    // State for navigation to alert settings screen
+    var showAlertSettings by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
@@ -1222,6 +1224,30 @@ fun InputScreen(
                     IconButton(onClick = onCalendarClick) {
                         Icon(Icons.Default.CalendarMonth, contentDescription = "Calendar")
                     }
+                }
+            )
+        },
+        bottomBar = {
+            // Fixed bottom bar with Save button to ensure it's always visible
+            Surface(
+                shadowElevation = 8.dp,
+                tonalElevation = 2.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Configure button
+                    OutlinedButton(
+                        onClick = { showAlertSettings = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("⚙️ Configure")
+                    }
+                    
+                    // Save button
                     Button(
                         onClick = {
                             if (content.isNotBlank()) {
@@ -1279,12 +1305,13 @@ fun InputScreen(
                                 onBack()
                             }
                         },
-                        enabled = content.isNotBlank() && !isProcessing
+                        enabled = content.isNotBlank() && !isProcessing,
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Text("Save")
+                        Text("💾 Save")
                     }
                 }
-            )
+            }
         }
     ) { paddingValues ->
         Column(
@@ -1292,6 +1319,7 @@ fun InputScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(16.dp)
+                .padding(bottom = 80.dp) // Add padding for bottom bar
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -1589,13 +1617,62 @@ fun InputScreen(
                         modifier = Modifier.align(Alignment.CenterHorizontally)
                     )
                     
-                    // Enhanced Alert Settings Section
-                    AlertSettingsSection(
-                        alertConfig = alertConfig,
-                        repeatPattern = repeatPattern,
-                        onAlertConfigChange = { alertConfig = it },
-                        onRepeatPatternChange = { repeatPattern = it }
-                    )
+                    // Alert Settings Summary (Compact)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "⚙️ Alert Settings",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = "Tap Configure to customize alerts",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                
+                                Button(
+                                    onClick = { showAlertSettings = true },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.secondary
+                                    )
+                                ) {
+                                    Text("Configure", fontSize = 12.sp)
+                                }
+                            }
+                            
+                            // Quick summary of current settings
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Alert: ${alertConfig.alertType.name.replace("_", " ")}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Text(
+                                    text = "Repeat: ${repeatPattern.type.name}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
                 }
             }
             
@@ -1710,6 +1787,17 @@ fun InputScreen(
                 }
             },
             onDismiss = { showTimePicker = false }
+        )
+    }
+    
+    // Alert Settings Screen Navigation
+    if (showAlertSettings) {
+        AlertSettingsScreen(
+            alertConfig = alertConfig,
+            repeatPattern = repeatPattern,
+            onAlertConfigChange = { alertConfig = it },
+            onRepeatPatternChange = { repeatPattern = it },
+            onBack = { showAlertSettings = false }
         )
     }
 }

@@ -61,7 +61,7 @@ class AlarmActivity : ComponentActivity() {
                 AlarmScreen(
                     title = title,
                     content = content,
-                    onDismiss = ::dismissAlarm,
+                    onDismiss = { dismissAlarm() },
                     alarmCount = alarmCount,
                     maxAlarms = maxAlarms
                 )
@@ -130,13 +130,21 @@ class AlarmActivity : ComponentActivity() {
         isAlarmDismissed = true
         
         // Stop sound
-        mediaPlayer?.stop()
-        mediaPlayer?.release()
+        try {
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+        } catch (e: Exception) {
+            android.util.Log.e("AlarmActivity", "Error stopping media player: ${e.message}")
+        }
         mediaPlayer = null
         isReleased = true
         
         // Cancel any pending alarms
-        handler?.removeCallbacksAndMessages(null)
+        try {
+            handler?.removeCallbacksAndMessages(null)
+        } catch (e: Exception) {
+            android.util.Log.e("AlarmActivity", "Error removing callbacks: ${e.message}")
+        }
         
         // Finish activity
         finish()
