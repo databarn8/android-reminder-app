@@ -12,9 +12,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.pointerInput
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.detectTapGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -260,7 +260,7 @@ fun DailyView(
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                text = year.toString(),
+                text = currentDate.year.toString(),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 16.dp)
@@ -384,8 +384,8 @@ fun WeeklyView(
                             )
                             .pointerInput(date) {
                                 detectTapGestures(
-                                    onTap = { offset ->
-                                        android.util.Log.d("CalendarTest", "Week view TAP DETECTED at offset: $offset for date: $date")
+                                    onTap = {
+                                        android.util.Log.d("CalendarTest", "Week view TAP DETECTED for date: $date")
                                         onDateClick(date)
                                     }
                                 )
@@ -560,8 +560,8 @@ fun MonthlyView(
                                     )
                                     .pointerInput(Unit) {
                                         detectTapGestures(
-                                            onTap = { offset ->
-                                                android.util.Log.d("CalendarTest", "TAP DETECTED at offset: $offset for date: $date")
+                                            onTap = {
+                                                android.util.Log.d("CalendarTest", "TAP DETECTED for date: $date")
                                                 onDateClick(date)
                                             }
                                         )
@@ -683,8 +683,8 @@ fun YearlyView(
                             )
                             .pointerInput(month) {
                                 detectTapGestures(
-                                    onTap = { offset ->
-                                        android.util.Log.d("CalendarTest", "Year view TAP DETECTED at offset: $offset for month: $month")
+                                    onTap = {
+                                        android.util.Log.d("CalendarTest", "Year view TAP DETECTED for month: $month")
                                         val newDate = currentDate.withMonth(month).withDayOfMonth(1)
                                         onDateClick(newDate)
                                     }

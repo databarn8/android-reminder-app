@@ -37,6 +37,7 @@ class AlarmActivity : ComponentActivity() {
     private var isAlarmDismissed = false
     private var alarmCount = 0
     private val maxAlarms = 5
+    private var isReleased = false
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,6 +91,7 @@ class AlarmActivity : ComponentActivity() {
             // Stop any existing sound
             mediaPlayer?.stop()
             mediaPlayer?.release()
+            isReleased = true
             
             // Get default alarm sound
             val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
@@ -104,10 +106,9 @@ class AlarmActivity : ComponentActivity() {
                 
                 // Auto-stop after 10 seconds
                 handler?.postDelayed({
-                    if (!isReleased) {
-                        stop()
-                        release()
-                    }
+                    stop()
+                    release()
+                    isReleased = true
                 }, 10000)
             }
         } catch (e: Exception) {
@@ -132,6 +133,7 @@ class AlarmActivity : ComponentActivity() {
         mediaPlayer?.stop()
         mediaPlayer?.release()
         mediaPlayer = null
+        isReleased = true
         
         // Cancel any pending alarms
         handler?.removeCallbacksAndMessages(null)

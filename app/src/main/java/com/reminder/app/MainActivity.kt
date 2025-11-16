@@ -79,7 +79,7 @@ class MainActivity : ComponentActivity() {
         
         // Request notification permission for Android 13+
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            if (!checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 android.util.Log.d("MainActivity", "Requesting POST_NOTIFICATIONS permission")
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             } else {
@@ -164,15 +164,9 @@ class MainActivity : ComponentActivity() {
                                 speechManager = speechManager,
                                 reminderId = reminderId,
                                 onBack = { navController.popBackStack() },
-                                onConfirm = { text, reminderTime ->
-                                    // Save reminder directly
-                                    val reminder = com.reminder.app.data.Reminder(
-                                        content = text,
-                                        category = "Personal",
-                                        importance = 5,
-                                        reminderTime = reminderTime
-                                    )
-                                    viewModel.addReminder(reminder)
+                                onConfirm = { _, _ ->
+                                    // InputScreen handles the reminder creation internally
+                                    // This callback is only used for navigation back
                                     navController.popBackStack()
                                 },
                                 onCalendarClick = { navController.navigate("calendar") }
@@ -185,7 +179,7 @@ class MainActivity : ComponentActivity() {
                                 initialText = text,
                                 speechManager = speechManager,
                                 onConfirm = { confirmedText ->
-                                    // Save the reminder to database
+                                    // Save reminder to database
                                     val reminder = com.reminder.app.data.Reminder(
                                         content = confirmedText,
                                         category = "Personal",
@@ -233,7 +227,7 @@ class MainActivity : ComponentActivity() {
                     if (!voiceInput.isNullOrBlank()) {
                         // Navigate to input screen with the voice input pre-filled
                         // This will be handled by the navigation system
-                        // For now, create the reminder directly
+                        // For now, create's reminder directly
                         createReminderFromVoice(voiceInput)
                         showReminderCreatedConfirmation()
                     }
@@ -244,7 +238,7 @@ class MainActivity : ComponentActivity() {
     
     private fun showReminderCreatedConfirmation() {
         // You could show a Toast or Snackbar here
-        // For now, the reminder appearing in the list is confirmation enough
+        // For now, reminder appearing in the list is confirmation enough
     }
     
     private fun createReminderFromVoice(text: String) {

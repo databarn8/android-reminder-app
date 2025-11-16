@@ -26,6 +26,42 @@ import com.reminder.app.utils.EmailService
 import com.reminder.app.viewmodel.ReminderViewModel
 import java.text.SimpleDateFormat
 import java.util.*
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.content.Context
+import android.view.WindowManager
+import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+
+// Fresh Button Implementation - Simple flash with vibration and system beep
+fun performSafeFreshFlash(context: Context) {
+    try {
+        android.util.Log.d("FreshButton", "Starting simple flash implementation")
+        
+        // Use ScreenFlashManager with simplified approach
+        com.reminder.app.utils.ScreenFlashManager.triggerFlash(
+            context = context,
+            flashColor = androidx.compose.ui.graphics.Color.Yellow,
+            flashDurationMs = 300, // Short flash duration
+            flashCount = 1, // Single flash for simplicity
+            intervalMs = 200 // Short interval
+        )
+        
+        android.util.Log.d("FreshButton", "Simple flash completed successfully")
+        
+    } catch (e: Exception) {
+        android.util.Log.e("FreshButton", "Simple flash failed: ${e.message}")
+        // Fallback to vibration only if flash fails
+        try {
+            com.reminder.app.utils.ScreenFlashManager.triggerVibration(context)
+        } catch (e2: Exception) {
+            android.util.Log.e("FreshButton", "Fallback vibration also failed: ${e2.message}")
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,15 +113,15 @@ fun ReminderListScreen(
                     }) {
                         Icon(Icons.Default.CalendarMonth, contentDescription = "Calendar")
                     }
-                    IconButton(onClick = { 
-                        android.util.Log.d("FlashTest", "Test flash alarm triggered!")
-                        com.reminder.app.utils.NotificationScheduler.testAlarm(context)
+                    IconButton(onClick = {
+                        android.util.Log.d("FreshButton", "Fresh button triggered - safe flash implementation")
+                        performSafeFreshFlash(context)
                     }) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Text("⚡", style = MaterialTheme.typography.titleLarge)
-                            Text("Test", style = MaterialTheme.typography.labelSmall)
+                            Text("✨", style = MaterialTheme.typography.titleLarge)
+                            Text("Fresh", style = MaterialTheme.typography.labelSmall)
                         }
                     }
                     IconButton(onClick = { /* Search toggle */ }) {
@@ -318,6 +354,7 @@ fun ReminderCard(
                     )
                 }
             }
+            
         }
     }
 }

@@ -1416,22 +1416,7 @@ fun InputScreen(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 Text(
-                                    text = if (reminderId != null && loadedReminder != null) {
-                                        // Show reminder date when editing
-                                        loadedReminder?.let { reminder ->
-                                            try {
-                                                val reminderDateTime = java.time.Instant.ofEpochMilli(reminder.reminderTime)
-                                                    .atZone(java.time.ZoneId.systemDefault())
-                                                    .toLocalDateTime()
-                                                reminderDateTime.toLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
-                                            } catch (e: Exception) {
-                                                selectedDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
-                                            }
-                                        } ?: selectedDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
-                                    } else {
-                                        // Show selected date for new reminders
-                                        selectedDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
-                                    },
+                                    text = if (whenDay.isNotBlank()) whenDay else selectedDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
                                     style = MaterialTheme.typography.bodyLarge
                                 )
                             }
@@ -1468,22 +1453,7 @@ fun InputScreen(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 Text(
-                                    text = if (reminderId != null && loadedReminder != null) {
-                                        // Show reminder time when editing
-                                        loadedReminder?.let { reminder ->
-                                            try {
-                                                val reminderDateTime = java.time.Instant.ofEpochMilli(reminder.reminderTime)
-                                                    .atZone(java.time.ZoneId.systemDefault())
-                                                    .toLocalDateTime()
-                                                reminderDateTime.toLocalTime().format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
-                                            } catch (e: Exception) {
-                                                selectedTime.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
-                                            }
-                                        } ?: selectedTime.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
-                                    } else {
-                                        // Show selected time for new reminders
-                                        selectedTime.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
-                                    },
+                                    text = if (whenTime.isNotBlank()) whenTime else selectedTime.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)),
                                     style = MaterialTheme.typography.bodyLarge
                                 )
                             }

@@ -36,34 +36,45 @@ object ScreenFlashManager {
     ) {
         if (isFlashing) return
         
-         // Check accessibility settings for visual notifications
+        // Check accessibility settings for visual notifications
         android.util.Log.d("ScreenFlashManager", "About to check visual notification settings")
         if (!isVisualNotificationEnabled(context)) {
             android.util.Log.d("ScreenFlashManager", "Visual notifications disabled in accessibility settings")
             return
         }
-        android.util.Log.d("ScreenFlashManager", "Visual notifications ENABLED - proceeding with flash")
+        android.util.Log.d("ScreenFlashManager", "Visual notifications ENABLED - proceeding with simple feedback")
         
         isFlashing = true
         
-        // Wake up screen if it's off (accessibility-friendly approach)
+        // Simple feedback approach: 1 vibration + 1 sound with 1 second wait
         if (context is Activity) {
             context.runOnUiThread {
-                // Use less intrusive flags for accessibility compliance
-                context.window.addFlags(
-                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                )
+                try {
+                    // Simple sequence: 1 vibration with 1s wait, then 1 sound
+                    android.util.Log.d("ScreenFlashManager", "Starting simple feedback sequence")
+                    
+                    // Single vibration
+                    triggerVibration(context)
+                    
+                    // Wait 1 second
+                    handler.postDelayed({
+                        // Single sound (using system beep sound instead of default)
+                        triggerSystemBeep(context)
+                        
+                        // Complete sequence
+                        android.util.Log.d("ScreenFlashManager", "Simple feedback sequence completed")
+                    }, 1000)
+                    
+                } catch (e: Exception) {
+                    android.util.Log.e("ScreenFlashManager", "Simple feedback failed: ${e.message}")
+                }
             }
         }
         
-        // Trigger flash through a global state that Compose can observe
-        FlashState.triggerFlash(flashColor, flashDurationMs, flashCount, intervalMs)
-        
-        // Reset flag after flashing completes
+        // Reset flag after sequence completes (approximately 2 seconds)
         handler.postDelayed({
             isFlashing = false
-        }, (flashCount * (flashDurationMs + intervalMs)).toLong())
+        }, 2000)
     }
     
     /**
@@ -155,7 +166,7 @@ object ScreenFlashManager {
         }
     }
     
-    fun triggerSound(context: Context) {
+    fun triggerSound(context: Context, soundType: Int = 0) {
         try {
             // Check if sound is enabled in system settings
             if (!isSoundEnabled(context)) {
@@ -163,16 +174,43 @@ object ScreenFlashManager {
                 return
             }
             
-            val sound = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
-            val ringtone = android.media.RingtoneManager.getRingtone(context, sound)
+            // Get different notification sounds based on type
+            val soundUri = when (soundType) {
+                1 -> android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM)
+                2 -> android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE)
+                3 -> android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
+                else -> android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
+            }
+            
+            val ringtone = android.media.RingtoneManager.getRingtone(context, soundUri)
             ringtone?.play()
             
-            // Stop sound after 2 seconds (accessibility-friendly duration)
+            android.util.Log.d("ScreenFlashManager", "Playing sound type $soundType: ${soundUri}")
+            
+            // Stop sound after 1.5 seconds (shorter for multiple sounds)
             handler.postDelayed({
                 ringtone?.stop()
-            }, 2000)
+            }, 1500)
         } catch (e: Exception) {
             android.util.Log.e("ScreenFlashManager", "Sound failed: ${e.message}")
+        }
+    }
+    
+    fun triggerSystemBeep(context: Context) {
+        try {
+            // Check if sound is enabled in system settings
+            if (!isSoundEnabled(context)) {
+                android.util.Log.d("ScreenFlashManager", "Sound disabled in system settings")
+                return
+            }
+            
+            // Use system beep sound (different from default notification)
+            val toneGenerator = android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 100)
+            toneGenerator.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 500)
+            
+            android.util.Log.d("ScreenFlashManager", "Playing system beep sound")
+        } catch (e: Exception) {
+            android.util.Log.e("ScreenFlashManager", "System beep failed: ${e.message}")
         }
     }
     
