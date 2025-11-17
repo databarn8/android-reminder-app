@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color.Companion.Red
@@ -46,6 +47,7 @@ import com.reminder.app.viewmodel.ReminderViewModel
 import com.reminder.app.ui.components.AlertSettingsSection
 import com.reminder.app.data.AlertConfig
 import com.reminder.app.data.RepeatPattern
+import com.reminder.app.data.RepeatType
 import com.reminder.app.data.toJson
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -238,6 +240,19 @@ fun getNextWeekday(today: LocalDate, targetDay: java.time.DayOfWeek): LocalDate 
         current = current.plusDays(1)
     }
     return current
+}
+
+// Helper function to get interval unit for repeat type
+fun getIntervalUnit(type: RepeatType): String {
+    return when (type) {
+        RepeatType.MINUTELY -> "minute(s)"
+        RepeatType.HOURLY -> "hour(s)"
+        RepeatType.DAILY -> "day(s)"
+        RepeatType.WEEKLY -> "week(s)"
+        RepeatType.MONTHLY -> "month(s)"
+        RepeatType.YEARLY -> "year(s)"
+        else -> ""
+    }
 }
 
 // Compact Slider Date Picker Dialog Component
@@ -1214,7 +1229,14 @@ fun InputScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Create Reminder") },
+                title = {
+                    Text(
+                        text = "📝",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 12.sp // Smaller font for compact display
+                        )
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -1319,8 +1341,10 @@ fun InputScreen(
                     modifier = Modifier.padding(16.dp)
                 ) {
                     Text(
-                        text = "📝 Create Your Reminder",
-                        style = MaterialTheme.typography.titleMedium
+                        text = "📝",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontSize = 8.sp // Even smaller font
+                        )
                     )
                     
                     Spacer(modifier = Modifier.height(8.dp))
@@ -1374,14 +1398,28 @@ fun InputScreen(
                     
                     Spacer(modifier = Modifier.height(8.dp))
                     
-                    // Single content field (typing + voice)
+                    // Single content field (typing + voice) - ultra compact for keyboard visibility
                     OutlinedTextField(
                         value = content,
                         onValueChange = { content = it },
-                        label = { Text("What do you need to remember?") },
+                        label = {
+                            Text(
+                                text = "What do you need?",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 8.sp // Ultra small font for keyboard mode
+                                )
+                            )
+                        },
                         modifier = Modifier.fillMaxWidth(),
-                        maxLines = 3, // Reduced from 4 to save space
-                        placeholder = { Text("e.g., Call mom tomorrow at 3pm") }
+                        maxLines = 1, // Single line to save maximum space
+                        placeholder = {
+                            Text(
+                                text = "e.g., Call mom tomorrow at 3pm",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = 8.sp // Small placeholder text
+                                )
+                            )
+                        }
                     )
                     
                     Spacer(modifier = Modifier.height(8.dp))
@@ -1630,6 +1668,20 @@ fun InputScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
+                                
+                                // Quick Configure Button
+                                Button(
+                                    onClick = { showAlertSettings = true },
+                                    modifier = Modifier.height(32.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary
+                                    )
+                                ) {
+                                    Text(
+                                        text = "Configure",
+                                        fontSize = 10.sp
+                                    )
+                                }
                             }
                             
                             // Quick summary of current settings
@@ -1645,6 +1697,16 @@ fun InputScreen(
                                 Text(
                                     text = "Repeat: ${repeatPattern.type.name}",
                                     style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            
+                            // Show repeat interval if configured
+                            if (repeatPattern.type != RepeatType.NONE) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Every ${repeatPattern.interval} ${getIntervalUnit(repeatPattern.type)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }

@@ -121,6 +121,20 @@ data class Reminder(
         )
         
         return when (pattern.type) {
+            RepeatType.MINUTELY -> {
+                var next = current
+                while (!next.isAfter(afterDate)) {
+                    next = next.plusMinutes(pattern.interval.toLong())
+                }
+                next
+            }
+            RepeatType.HOURLY -> {
+                var next = current
+                while (!next.isAfter(afterDate)) {
+                    next = next.plusHours(pattern.interval.toLong())
+                }
+                next
+            }
             RepeatType.DAILY -> {
                 var next = current
                 while (!next.isAfter(afterDate)) {
@@ -188,6 +202,8 @@ data class Reminder(
                 occurrences.add(next)
             }
             next = when (pattern.type) {
+                RepeatType.MINUTELY -> next.plusMinutes(pattern.interval.toLong())
+                RepeatType.HOURLY -> next.plusHours(pattern.interval.toLong())
                 RepeatType.DAILY -> next.plusDays(pattern.interval.toLong())
                 RepeatType.WEEKLY -> next.plusWeeks(pattern.interval.toLong())
                 RepeatType.MONTHLY -> next.plusMonths(pattern.interval.toLong())

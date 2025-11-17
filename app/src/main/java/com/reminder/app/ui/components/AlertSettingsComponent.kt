@@ -194,6 +194,8 @@ fun RepeatConfigurationSection(
         // Repeat type selector
         val repeatTypes = listOf(
             RepeatType.NONE to "None",
+            RepeatType.MINUTELY to "Minutely",
+            RepeatType.HOURLY to "Hourly",
             RepeatType.DAILY to "Daily",
             RepeatType.WEEKLY to "Weekly",
             RepeatType.MONTHLY to "Monthly",
@@ -793,6 +795,8 @@ private fun getAlertTypeDescription(type: AlertType): String {
 
 private fun getIntervalUnit(type: RepeatType): String {
     return when (type) {
+        RepeatType.MINUTELY -> "minute(s)"
+        RepeatType.HOURLY -> "hour(s)"
         RepeatType.DAILY -> "day(s)"
         RepeatType.WEEKLY -> "week(s)"
         RepeatType.MONTHLY -> "month(s)"

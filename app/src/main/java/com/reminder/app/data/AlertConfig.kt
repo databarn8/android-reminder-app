@@ -91,7 +91,7 @@ data class RepeatPattern(
 
 @Serializable
 enum class RepeatType {
-    NONE, DAILY, WEEKLY, MONTHLY, YEARLY, CUSTOM
+    NONE, MINUTELY, HOURLY, DAILY, WEEKLY, MONTHLY, YEARLY, CUSTOM
 }
 
 // LocalDate serializer for kotlinx.serialization
