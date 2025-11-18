@@ -99,48 +99,69 @@ class EmailPreferencesManager(private val context: Context) {
             PackageManager.MATCH_DEFAULT_ONLY
         )
         
+        android.util.Log.d("EmailPreferences", "Found ${resolveInfos.size} apps that can handle email intent")
+        
         for (resolveInfo in resolveInfos) {
             val packageName = resolveInfo.activityInfo.packageName
             val appName = resolveInfo.loadLabel(context.packageManager).toString()
             
-            // Skip system apps that aren't really email clients
-            if (isEmailClient(packageName)) {
+            android.util.Log.d("EmailPreferences", "Checking app: $appName ($packageName)")
+            
+            // Filter out obvious non-email apps
+            if (!isNonEmailApp(packageName, appName)) {
+                android.util.Log.d("EmailPreferences", "Adding email client: $appName")
                 emailClients.add(EmailClientPreference(packageName, appName))
+            } else {
+                android.util.Log.d("EmailPreferences", "Filtering out non-email app: $appName")
             }
         }
         
-        return emailClients.distinctBy { it.packageName }
+        val distinctClients = emailClients.distinctBy { it.packageName }
+        android.util.Log.d("EmailPreferences", "Final email client list: ${distinctClients.size} apps")
+        distinctClients.forEach {
+            android.util.Log.d("EmailPreferences", " - ${it.appName} (${it.packageName})")
+        }
+        
+        return distinctClients
     }
     
     /**
-     * Check if a package is likely an email client
+     * Check if a package is definitely NOT an email client
      */
-    private fun isEmailClient(packageName: String): Boolean {
-        val knownEmailClients = setOf(
-            "com.google.android.gm", // Gmail
-            "com.microsoft.office.outlook", // Outlook
-            "com.yahoo.mobile.client.android.mail", // Yahoo Mail
-            "com.fsck.k9", // K-9 Mail
-            "com.android.email", // Android Email
-            "com.samsung.android.email.provider", // Samsung Email
-            "com.htc.android.mail", // HTC Mail
-            "com.tmobile.us.mail", // T-Mobile Mail
-            "com.aol.mobile.mail", // AOL Mail
-            "com.google.android.apps.gmail", // Gmail (alternative package)
-            "com.google.android.gm.lite", // Gmail Go
-            "com.bluepointe.foxmail", // Foxmail
-            "com.my.mail.android" // myMail
+    private fun isNonEmailApp(packageName: String, appName: String): Boolean {
+        val knownNonEmailApps = setOf(
+            "com.android.bluetooth", // Bluetooth
+            "com.android.phone", // Phone
+            "com.android.settings", // Settings
+            "com.android.systemui", // System UI
+            "com.google.android.apps.maps", // Maps
+            "com.google.android.youtube", // YouTube
+            "com.google.android.apps.photos", // Photos
+            "com.google.android.gms", // Google Play Services
+            "com.android.vending", // Play Store
+            "com.whatsapp", // WhatsApp (though it can share, it's not primarily email)
+            "com.facebook.katana", // Facebook
+            "com.instagram.android", // Instagram
+            "com.twitter.android", // Twitter
+            "com.tiktok", // TikTok
+            "com.netflix.mediaclient", // Netflix
+            "com.spotify.music", // Spotify
+            "com.google.android.apps.docs.editors.docs", // Google Docs
+            "com.google.android.apps.docs.editors.sheets", // Google Sheets
+            "com.google.android.apps.docs.editors.slides", // Google Slides
+            "com.google.android.apps.messaging", // Android Messages
+            "com.samsung.android.messaging" // Samsung Messages
         )
         
-        // Check if it's a known email client
-        if (knownEmailClients.contains(packageName)) {
+        // Check if it's a known non-email app
+        if (knownNonEmailApps.contains(packageName)) {
             return true
         }
         
-        // Check if package name contains email-related keywords
-        val emailKeywords = listOf("mail", "email", "gmail", "outlook", "yahoo")
-        return emailKeywords.any { keyword ->
-            packageName.lowercase().contains(keyword)
+        // Check if app name suggests it's not an email client
+        val nonEmailKeywords = listOf("camera", "gallery", "music", "video", "game", "browser", "file manager")
+        return nonEmailKeywords.any { keyword ->
+            appName.lowercase().contains(keyword) || packageName.lowercase().contains(keyword)
         }
     }
     
@@ -183,7 +204,26 @@ class EmailPreferencesManager(private val context: Context) {
     fun updatePreferredEmailClient(intent: Intent?) {
         intent?.let {
             // Try to extract package info from the intent
-            val packageName = it.`package` ?: return@let
+            // The package name might be in different fields depending on how the chooser was used
+            var packageName = it.`package`
+            
+            // If package is null, try to get it from the component
+            if (packageName == null) {
+                packageName = it.component?.packageName
+            }
+            
+            // If still null, try to extract from the selector (for newer Android versions)
+            if (packageName == null) {
+                val selector = it.selector
+                if (selector != null) {
+                    packageName = selector.`package`
+                }
+            }
+            
+            // If we still don't have a package name, we can't update the preference
+            if (packageName == null) {
+                return@let
+            }
             
             // Get app name from package manager
             val appName = try {

@@ -49,11 +49,11 @@ class MainActivity : ComponentActivity() {
     private val emailIntentLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.let { intent ->
-                // Update email preference based on user's choice
-                emailService.updateEmailPreference(this@MainActivity, intent)
-            }
+        // For email intents, we want to capture the user's choice regardless of result code
+        // since RESULT_OK might not be returned when user just selects an app
+        result.data?.let { intent ->
+            // Update email preference based on user's choice
+            emailService.updateEmailPreference(this@MainActivity, intent)
         }
     }
     

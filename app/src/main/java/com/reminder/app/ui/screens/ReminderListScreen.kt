@@ -22,7 +22,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import com.reminder.app.data.Reminder
-import com.reminder.app.utils.EmailService
+import com.reminder.app.utils.EnhancedEmailService
 import com.reminder.app.viewmodel.ReminderViewModel
 import java.text.SimpleDateFormat
 import java.util.*

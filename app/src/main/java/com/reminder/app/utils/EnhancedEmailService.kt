@@ -192,7 +192,36 @@ class EnhancedEmailService {
         if (emailPreferencesManager == null) {
             emailPreferencesManager = EmailPreferencesManager(context)
         }
-        emailPreferencesManager?.updatePreferredEmailClient(chosenIntent)
+        
+        // Try to extract package name from the chosen intent
+        chosenIntent?.let { intent ->
+            // First try to get package from the intent itself
+            var packageName = intent.`package`
+            
+            // If not found, try to get from component
+            if (packageName == null) {
+                packageName = intent.component?.packageName
+            }
+            
+            // If still not found, try to get from selector
+            if (packageName == null) {
+                val selector = intent.selector
+                if (selector != null) {
+                    packageName = selector.`package`
+                }
+            }
+            
+            // If we found a package name, save it as preference
+            if (packageName != null) {
+                try {
+                    val appInfo = context.packageManager.getApplicationInfo(packageName, 0)
+                    val appName = context.packageManager.getApplicationLabel(appInfo).toString()
+                    emailPreferencesManager?.savePreferredEmailClient(packageName, appName)
+                } catch (e: PackageManager.NameNotFoundException) {
+                    // Package not found, don't save preference
+                }
+            }
+        }
     }
     
     /**
