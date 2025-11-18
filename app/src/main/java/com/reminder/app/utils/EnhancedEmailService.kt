@@ -68,7 +68,23 @@ class EnhancedEmailService {
                     formatPriority(reminder.importance)
                 ),
                 forceChooser = true // Always show chooser to allow user to select from Email Settings
-            ) ?: Intent.createChooser(emailIntent, "Send reminder via email")
+            ) ?: run {
+                val fallbackIntent = Intent(Intent.ACTION_SEND).apply {
+                    putExtra(Intent.EXTRA_EMAIL, arrayOf(""))
+                    putExtra(Intent.EXTRA_SUBJECT, String.format(EMAIL_SUBJECT, reminder.content.take(30)))
+                    putExtra(Intent.EXTRA_TEXT, String.format(
+                        EMAIL_BODY,
+                        reminder.content,
+                        formatReminderTime(reminder.reminderTime),
+                        formatReminderDate(reminder.whenDay),
+                        formatRepeatInfo(reminder.repeatType, reminder.repeatInterval),
+                        reminder.category ?: "General",
+                        formatPriority(reminder.importance)
+                    ))
+                    type = "message/rfc822"
+                }
+                Intent.createChooser(fallbackIntent, "Send reminder via email")
+            }
             
             context.startActivity(finalIntent)
             
@@ -106,41 +122,12 @@ class EnhancedEmailService {
             if (emailPreferencesManager?.hasPreferredEmailClient() == true) {
                 // Use preferred client directly
                 val preference = emailPreferencesManager?.getPreferredEmailClient()
-                val emailIntent = Intent(Intent.ACTION_SEND).apply {
-                    putExtra(Intent.EXTRA_EMAIL, arrayOf("")) // User can add recipient
-                    putExtra(Intent.EXTRA_SUBJECT, String.format(EMAIL_SUBJECT, reminder.content.take(30)))
-                    putExtra(Intent.EXTRA_TEXT, String.format(
-                        EMAIL_BODY,
-                        reminder.content,
-                        formatReminderTime(reminder.reminderTime),
-                        formatReminderDate(reminder.whenDay),
-                        formatRepeatInfo(reminder.repeatType, reminder.repeatInterval),
-                        reminder.category ?: "General",
-                        formatPriority(reminder.importance)
-                    ))
-                    type = "message/rfc822"
-                    setPackage(preference?.packageName)
-                }
-                
-                // Try to create and attach file with reminder details
-                try {
-                    val reminderFile = createReminderFile(context, reminder)
-                    val fileUri = FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        reminderFile
-                    )
-                    
-                    // Grant temporary permission to file
-                    emailIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    emailIntent.putExtra(Intent.EXTRA_STREAM, fileUri)
-                } catch (fileException: Exception) {
-                    // Continue without attachment if file creation fails
-                    println("Could not create attachment: ${fileException.message}")
-                }
-                
-                // Launch the email client directly
-                launcher.launch(emailIntent)
+                sendReminderEmailToSpecificClient(
+                    context = context,
+                    reminder = reminder,
+                    packageName = preference?.packageName ?: "",
+                    launcher = launcher
+                )
             } else {
                 // No preference set, show chooser
                 val emailIntent = Intent(Intent.ACTION_SEND).apply {
@@ -193,7 +180,7 @@ class EnhancedEmailService {
         context: Context,
         reminder: Reminder,
         packageName: String,
-        launcher: ActivityResultLauncher<Intent>
+        launcher: ActivityResultLauncher<Intent>? = null
     ) {
         try {
             val emailIntent = Intent(Intent.ACTION_SEND).apply {
@@ -230,7 +217,11 @@ class EnhancedEmailService {
             }
             
             // Launch directly to the specified email client
-            launcher.launch(emailIntent)
+            if (launcher != null) {
+                launcher.launch(emailIntent)
+            } else {
+                context.startActivity(emailIntent)
+            }
             
         } catch (e: Exception) {
             // Fallback to basic sharing if email fails

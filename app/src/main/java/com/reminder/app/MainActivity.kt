@@ -146,11 +146,22 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("calendar") 
                                 },
                                 onEmailClick = { reminder ->
-                                    emailService.sendReminderEmailWithLauncher(
-                                        this@MainActivity,
-                                        reminder,
-                                        emailIntentLauncher
-                                    )
+                                    // Check if we have a preferred email client
+                                    if (emailPreferencesManager.hasPreferredEmailClient()) {
+                                        val preference = emailPreferencesManager.getPreferredEmailClient()
+                                        emailService.sendReminderEmailToSpecificClient(
+                                            this@MainActivity,
+                                            reminder,
+                                            preference.packageName
+                                        )
+                                    } else {
+                                        // No preference set, show chooser
+                                        emailService.sendReminderEmailWithLauncher(
+                                            this@MainActivity,
+                                            reminder,
+                                            emailIntentLauncher
+                                        )
+                                    }
                                 },
                                 onEmailSettingsClick = {
                                     navController.navigate("email_settings")

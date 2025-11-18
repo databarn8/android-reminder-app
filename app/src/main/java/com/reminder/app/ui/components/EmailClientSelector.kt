@@ -37,18 +37,29 @@ fun EmailClientSelector(
     var availableEmailClients by remember { mutableStateOf<List<EmailClientPreference>>(emptyList()) }
     var currentPreferredClient by remember { mutableStateOf(emailPreferencesManager.getPreferredEmailClient()) }
     
-    // Create a dummy launcher for testing email clients
-    val launcher = remember {
-        object : ActivityResultLauncher<Intent> {
-            override fun launch(input: Intent?) {
-                try {
-                    context.startActivity(input)
-                } catch (e: Exception) {
-                    android.util.Log.e("EmailClientSelector", "Failed to launch email client: ${e.message}")
-                }
-            }
-            
-            override fun unregister() {}
+    // Create a simple function to test email clients
+    fun testEmailClient(packageName: String) {
+        try {
+            val testReminder = com.reminder.app.data.Reminder(
+                id = 0,
+                content = "Test email from selected client",
+                category = "Test",
+                importance = 3,
+                reminderTime = System.currentTimeMillis(),
+                whenDay = null,
+                whenTime = null,
+                repeatType = "none",
+                repeatInterval = 1,
+                createdAt = System.currentTimeMillis()
+            )
+            emailService.sendReminderEmailToSpecificClient(
+                context = context,
+                reminder = testReminder,
+                packageName = packageName,
+                launcher = null // We'll use a different approach
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("EmailClientSelector", "Failed to test email client: ${e.message}")
         }
     }
     
@@ -166,28 +177,7 @@ fun EmailClientSelector(
                                         showSelectorDialog = false
                                         
                                         // Test the selected email client by launching it
-                                        try {
-                                            val testReminder = com.reminder.app.data.Reminder(
-                                                id = 0,
-                                                content = "Test email from ${emailClient.appName}",
-                                                category = "Test",
-                                                importance = 3,
-                                                reminderTime = System.currentTimeMillis(),
-                                                whenDay = null,
-                                                whenTime = null,
-                                                repeatType = "none",
-                                                repeatInterval = 1,
-                                                createdAt = System.currentTimeMillis()
-                                            )
-                                            emailService.sendReminderEmailToSpecificClient(
-                                                context = context,
-                                                reminder = testReminder,
-                                                packageName = emailClient.packageName,
-                                                launcher = launcher
-                                            )
-                                        } catch (e: Exception) {
-                                            android.util.Log.e("EmailClientSelector", "Failed to test email client: ${e.message}")
-                                        }
+                                        testEmailClient(emailClient.packageName)
                                     }
                                 )
                             }
