@@ -171,9 +171,6 @@ class MainActivity : ComponentActivity() {
                                         emailIntentLauncher
                                     )
                                 },
-                                onEmailSettingsClick = {
-                                    navController.navigate("email_settings")
-                                }
                             )
                         }
                         
@@ -239,9 +236,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         
-                        composable(route = "email_settings") {
-                            EmailSettingsScreen(navController = navController)
-                        }
                     }
                 }
             }

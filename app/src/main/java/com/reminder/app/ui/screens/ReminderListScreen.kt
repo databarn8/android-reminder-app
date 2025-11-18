@@ -125,9 +125,6 @@ fun ReminderListScreen(
                             Text("Fresh", style = MaterialTheme.typography.labelSmall)
                         }
                     }
-                    IconButton(onClick = { onEmailSettingsClick() }) {
-                        Icon(Icons.Default.Email, contentDescription = "Email Settings")
-                    }
                     IconButton(onClick = { /* Search toggle */ }) {
                         Icon(Icons.Default.Search, contentDescription = "Search")
                     }
@@ -267,13 +264,6 @@ fun ReminderCard(
                         )
                     }
                     
-                    IconButton(onClick = onEmail) {
-                        Icon(
-                            Icons.Default.Email,
-                            contentDescription = "Email",
-                            tint = MaterialTheme.colorScheme.secondary
-                        )
-                    }
                     
                     IconButton(onClick = onDelete) {
                         Icon(
