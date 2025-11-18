@@ -81,7 +81,8 @@ fun EmailSettingsScreen(
                     
                     EmailClientSelector(
                         onEmailClientChanged = { emailClient ->
-                            // Handle email client change if needed
+                            // Show confirmation that preference was saved
+                            android.util.Log.d("EmailSettings", "Email client preference changed to: ${emailClient.appName}")
                         }
                     )
                 }
