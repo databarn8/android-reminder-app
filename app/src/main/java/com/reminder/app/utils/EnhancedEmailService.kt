@@ -1,11 +1,14 @@
 package com.reminder.app.utils
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import androidx.activity.result.ActivityResultLauncher
 import androidx.core.content.FileProvider
 import com.reminder.app.data.Reminder
+import com.reminder.app.data.EmailPreferencesManager
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -14,6 +17,8 @@ import java.util.*
  * Enhanced Email Service with improved reminder content and formatting
  */
 class EnhancedEmailService {
+    
+    private var emailPreferencesManager: EmailPreferencesManager? = null
     
     companion object {
         private const val EMAIL_SUBJECT = "🔔 Reminder: %s"
@@ -42,13 +47,18 @@ class EnhancedEmailService {
     /**
      * Send email with enhanced reminder details
      */
-    fun sendReminderEmail(context: Context, reminder: Reminder) {
+    fun sendReminderEmail(context: Context, reminder: Reminder, forceChooser: Boolean = false) {
         try {
-            // Create email intent
-            val emailIntent = Intent(Intent.ACTION_SEND).apply {
-                putExtra(Intent.EXTRA_EMAIL, arrayOf("")) // User can add recipient
-                putExtra(Intent.EXTRA_SUBJECT, String.format(EMAIL_SUBJECT, reminder.content.take(30)))
-                putExtra(Intent.EXTRA_TEXT, String.format(
+            // Initialize preferences manager if not already done
+            if (emailPreferencesManager == null) {
+                emailPreferencesManager = EmailPreferencesManager(context)
+            }
+            
+            // Always use Email Settings for email client selection
+            // This ensures users set their preference in one place and it persists
+            val finalIntent = emailPreferencesManager?.createEmailIntent(
+                subject = String.format(EMAIL_SUBJECT, reminder.content.take(30)),
+                body = String.format(
                     EMAIL_BODY,
                     reminder.content,
                     formatReminderTime(reminder.reminderTime),
@@ -56,34 +66,163 @@ class EnhancedEmailService {
                     formatRepeatInfo(reminder.repeatType, reminder.repeatInterval),
                     reminder.category ?: "General",
                     formatPriority(reminder.importance)
-                ))
-                type = "message/rfc822"
-            }
+                ),
+                forceChooser = true // Always show chooser to allow user to select from Email Settings
+            ) ?: Intent.createChooser(emailIntent, "Send reminder via email")
             
-            // Try to create and attach file with reminder details
-            try {
-                val reminderFile = createReminderFile(context, reminder)
-                val fileUri = FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.fileprovider",
-                    reminderFile
-                )
-                
-                // Grant temporary permission to the file
-                emailIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                emailIntent.putExtra(Intent.EXTRA_STREAM, fileUri)
-            } catch (fileException: Exception) {
-                // Continue without attachment if file creation fails
-                println("Could not create attachment: ${fileException.message}")
-            }
-            
-            // Start email chooser
-            context.startActivity(Intent.createChooser(emailIntent, "Send reminder via email"))
+            context.startActivity(finalIntent)
             
         } catch (e: Exception) {
             // Fallback to basic sharing if email fails
             sendSimpleReminder(context, reminder)
         }
+    }
+    
+    /**
+     * Send email with reminder details and update preferences
+     */
+    fun sendReminderEmailAndUpdatePreference(context: Context, reminder: Reminder, forceChooser: Boolean = false) {
+        sendReminderEmail(context, reminder, forceChooser)
+        
+        // Note: We can't directly update preferences here since we don't know which email client
+        // user chose. This will be handled by the activity result callback.
+    }
+    
+    /**
+     * Send email with activity result launcher to capture user's email client choice
+     */
+    fun sendReminderEmailWithLauncher(
+        context: Context, 
+        reminder: Reminder, 
+        launcher: ActivityResultLauncher<Intent>
+    ) {
+        try {
+            // Initialize preferences manager if not already done
+            if (emailPreferencesManager == null) {
+                emailPreferencesManager = EmailPreferencesManager(context)
+            }
+            
+            // Check if we have a preferred email client
+            if (emailPreferencesManager?.hasPreferredEmailClient() == true) {
+                // Use preferred client directly
+                val preference = emailPreferencesManager?.getPreferredEmailClient()
+                val emailIntent = Intent(Intent.ACTION_SEND).apply {
+                    putExtra(Intent.EXTRA_EMAIL, arrayOf("")) // User can add recipient
+                    putExtra(Intent.EXTRA_SUBJECT, String.format(EMAIL_SUBJECT, reminder.content.take(30)))
+                    putExtra(Intent.EXTRA_TEXT, String.format(
+                        EMAIL_BODY,
+                        reminder.content,
+                        formatReminderTime(reminder.reminderTime),
+                        formatReminderDate(reminder.whenDay),
+                        formatRepeatInfo(reminder.repeatType, reminder.repeatInterval),
+                        reminder.category ?: "General",
+                        formatPriority(reminder.importance)
+                    ))
+                    type = "message/rfc822"
+                    setPackage(preference?.packageName)
+                }
+                
+                // Try to create and attach file with reminder details
+                try {
+                    val reminderFile = createReminderFile(context, reminder)
+                    val fileUri = FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        reminderFile
+                    )
+                    
+                    // Grant temporary permission to file
+                    emailIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    emailIntent.putExtra(Intent.EXTRA_STREAM, fileUri)
+                } catch (fileException: Exception) {
+                    // Continue without attachment if file creation fails
+                    println("Could not create attachment: ${fileException.message}")
+                }
+                
+                // Launch the email client directly
+                launcher.launch(emailIntent)
+            } else {
+                // No preference set, show chooser
+                val emailIntent = Intent(Intent.ACTION_SEND).apply {
+                    putExtra(Intent.EXTRA_EMAIL, arrayOf("")) // User can add recipient
+                    putExtra(Intent.EXTRA_SUBJECT, String.format(EMAIL_SUBJECT, reminder.content.take(30)))
+                    putExtra(Intent.EXTRA_TEXT, String.format(
+                        EMAIL_BODY,
+                        reminder.content,
+                        formatReminderTime(reminder.reminderTime),
+                        formatReminderDate(reminder.whenDay),
+                        formatRepeatInfo(reminder.repeatType, reminder.repeatInterval),
+                        reminder.category ?: "General",
+                        formatPriority(reminder.importance)
+                    ))
+                    type = "message/rfc822"
+                }
+                
+                // Try to create and attach file with reminder details
+                try {
+                    val reminderFile = createReminderFile(context, reminder)
+                    val fileUri = FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        reminderFile
+                    )
+                    
+                    // Grant temporary permission to file
+                    emailIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    emailIntent.putExtra(Intent.EXTRA_STREAM, fileUri)
+                } catch (fileException: Exception) {
+                    // Continue without attachment if file creation fails
+                    println("Could not create attachment: ${fileException.message}")
+                }
+                
+                // Launch chooser
+                launcher.launch(Intent.createChooser(emailIntent, "Send reminder via email"))
+            }
+            
+        } catch (e: Exception) {
+            // Fallback to basic sharing if email fails
+            sendSimpleReminder(context, reminder)
+        }
+    }
+    
+    /**
+     * Update email client preference after successful email sending
+     */
+    fun updateEmailPreference(context: Context, chosenIntent: Intent?) {
+        if (emailPreferencesManager == null) {
+            emailPreferencesManager = EmailPreferencesManager(context)
+        }
+        emailPreferencesManager?.updatePreferredEmailClient(chosenIntent)
+    }
+    
+    /**
+     * Get current preferred email client
+     */
+    fun getPreferredEmailClient(context: Context): String {
+        if (emailPreferencesManager == null) {
+            emailPreferencesManager = EmailPreferencesManager(context)
+        }
+        val preference = emailPreferencesManager?.getPreferredEmailClient()
+        return if (preference?.packageName?.isNotEmpty() == true) {
+            preference.appName
+        } else {
+            "No preferred email client set"
+        }
+    }
+    
+    /**
+     * Get available email clients
+     */
+    fun getAvailableEmailClients(context: Context) = EmailPreferencesManager(context).getAvailableEmailClients()
+    
+    /**
+     * Clear email client preference
+     */
+    fun clearEmailPreference(context: Context) {
+        if (emailPreferencesManager == null) {
+            emailPreferencesManager = EmailPreferencesManager(context)
+        }
+        emailPreferencesManager?.clearPreferredEmailClient()
     }
     
     /**

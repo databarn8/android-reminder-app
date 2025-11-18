@@ -15,10 +15,13 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import com.reminder.app.data.ReminderDatabase
 import com.reminder.app.repository.ReminderRepository
 import com.reminder.app.ui.screens.CalendarScreen
 import com.reminder.app.ui.screens.ConfirmationScreen
+import com.reminder.app.ui.screens.EmailSettingsScreen
 import com.reminder.app.ui.screens.InputScreen
 import com.reminder.app.ui.screens.ReminderListScreen
 import com.reminder.app.ui.theme.ReminderAppTheme
@@ -30,15 +33,28 @@ import com.reminder.app.utils.SpeechManager
 import com.reminder.app.viewmodel.ReminderViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.remember
+import com.reminder.app.data.EmailPreferencesManager
 
 class MainActivity : ComponentActivity() {
     private lateinit var speechManager: SpeechManager
     private lateinit var emailService: EnhancedEmailService
+    private lateinit var emailPreferencesManager: EmailPreferencesManager
     
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         speechManager.onPermissionResult(isGranted)
+    }
+    
+    private val emailIntentLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.let { intent ->
+                // Update email preference based on user's choice
+                emailService.updateEmailPreference(this@MainActivity, intent)
+            }
+        }
     }
     
     private val notificationPermissionLauncher = registerForActivityResult(
@@ -71,6 +87,7 @@ class MainActivity : ComponentActivity() {
         speechManager = SpeechManager(this)
         speechManager.setActivity(this)
         emailService = EnhancedEmailService()
+        emailPreferencesManager = EmailPreferencesManager(this)
         
         // Check and request necessary permissions
         if (!speechManager.hasAudioPermission()) {
@@ -129,7 +146,14 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("calendar") 
                                 },
                                 onEmailClick = { reminder ->
-                                    emailService.sendReminderEmail(this@MainActivity, reminder)
+                                    emailService.sendReminderEmailWithLauncher(
+                                        this@MainActivity,
+                                        reminder,
+                                        emailIntentLauncher
+                                    )
+                                },
+                                onEmailSettingsClick = {
+                                    navController.navigate("email_settings")
                                 }
                             )
                         }
@@ -194,6 +218,10 @@ class MainActivity : ComponentActivity() {
                                 onBack = { navController.popBackStack() },
                                 onCalendarClick = { navController.navigate("calendar") }
                             )
+                        }
+                        
+                        composable(route = "email_settings") {
+                            EmailSettingsScreen(navController = navController)
                         }
                     }
                 }

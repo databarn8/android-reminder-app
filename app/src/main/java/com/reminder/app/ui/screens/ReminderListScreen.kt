@@ -71,7 +71,8 @@ fun ReminderListScreen(
     onReminderClick: (Reminder) -> Unit,
     onEditClick: (Reminder) -> Unit,
     onCalendarClick: () -> Unit = {},
-    onEmailClick: (Reminder) -> Unit = {}
+    onEmailClick: (Reminder) -> Unit = {},
+    onEmailSettingsClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val reminders by viewModel.reminders.collectAsState()
@@ -107,9 +108,9 @@ fun ReminderListScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { 
+                    IconButton(onClick = {
                         android.util.Log.d("CalendarTest", "Calendar button clicked in ReminderListScreen!")
-                        onCalendarClick() 
+                        onCalendarClick()
                     }) {
                         Icon(Icons.Default.CalendarMonth, contentDescription = "Calendar")
                     }
@@ -123,6 +124,9 @@ fun ReminderListScreen(
                             Text("✨", style = MaterialTheme.typography.titleLarge)
                             Text("Fresh", style = MaterialTheme.typography.labelSmall)
                         }
+                    }
+                    IconButton(onClick = { onEmailSettingsClick() }) {
+                        Icon(Icons.Default.Email, contentDescription = "Email Settings")
                     }
                     IconButton(onClick = { /* Search toggle */ }) {
                         Icon(Icons.Default.Search, contentDescription = "Search")
