@@ -55,6 +55,22 @@ class MainActivity : ComponentActivity() {
             // Update email preference based on user's choice
             emailService.updateEmailPreference(this@MainActivity, intent)
         }
+        
+        // Always return to the reminder app regardless of result
+        // This prevents getting stuck in email client
+        // Check if we're currently in a different app (like email client)
+        val currentApp = result.data?.`package` ?: result.data?.component?.packageName
+        val isReminderApp = currentApp == packageName
+        
+        android.util.Log.d("EmailTest", "Email result - resultCode: ${result.resultCode}, data: ${result.data}, isReminderApp: $isReminderApp")
+        
+        // If we're not in the reminder app, bring it back to front
+        if (!isReminderApp) {
+            val bringToFrontIntent = Intent(this@MainActivity, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            startActivity(bringToFrontIntent)
+        }
     }
     
     private val notificationPermissionLauncher = registerForActivityResult(
@@ -146,22 +162,14 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("calendar") 
                                 },
                                 onEmailClick = { reminder ->
-                                    // Check if we have a preferred email client
-                                    if (emailPreferencesManager.hasPreferredEmailClient()) {
-                                        val preference = emailPreferencesManager.getPreferredEmailClient()
-                                        emailService.sendReminderEmailToSpecificClient(
-                                            this@MainActivity,
-                                            reminder,
-                                            preference.packageName
-                                        )
-                                    } else {
-                                        // No preference set, show chooser
-                                        emailService.sendReminderEmailWithLauncher(
-                                            this@MainActivity,
-                                            reminder,
-                                            emailIntentLauncher
-                                        )
-                                    }
+                                    // Always use the launcher to capture user choice
+                                    // This ensures we can update the preference regardless of whether
+                                    // a preferred client is already set or not
+                                    emailService.sendReminderEmailWithLauncher(
+                                        this@MainActivity,
+                                        reminder,
+                                        emailIntentLauncher
+                                    )
                                 },
                                 onEmailSettingsClick = {
                                     navController.navigate("email_settings")

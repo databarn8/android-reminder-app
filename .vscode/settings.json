@@ -1,0 +1,13 @@
+{
+    {
+  "kilocode.mcpServers": {
+    "web-search-prime": {
+      "type": "http",
+      "url": "https://api.z.ai/api/mcp/web_search_prime/mcp",
+      "headers": {
+        "Authorization": "Bearer c9da6f42ddce4ad3825f03560ffd8067.bJL7OrFk41a7rzYB"
+      }
+    }
+  }
+}
+}

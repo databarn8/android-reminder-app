@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.content.Intent
 import android.content.pm.ResolveInfo
+import android.net.Uri
 
 /**
  * Data class to hold email client preferences
@@ -89,9 +90,9 @@ class EmailPreferencesManager(private val context: Context) {
     fun getAvailableEmailClients(): List<EmailClientPreference> {
         val emailClients = mutableListOf<EmailClientPreference>()
         
-        // Create email intent to find email apps
-        val emailIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "message/rfc822"
+        // Create email intent to find email apps - use SENDTO with mailto: to target only email clients
+        val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
+            data = Uri.parse("mailto:")
         }
         
         val resolveInfos = context.packageManager.queryIntentActivities(
@@ -107,13 +108,8 @@ class EmailPreferencesManager(private val context: Context) {
             
             android.util.Log.d("EmailPreferences", "Checking app: $appName ($packageName)")
             
-            // Filter out obvious non-email apps
-            if (!isNonEmailApp(packageName, appName)) {
-                android.util.Log.d("EmailPreferences", "Adding email client: $appName")
-                emailClients.add(EmailClientPreference(packageName, appName))
-            } else {
-                android.util.Log.d("EmailPreferences", "Filtering out non-email app: $appName")
-            }
+            // Add ALL apps first, then filter
+            emailClients.add(EmailClientPreference(packageName, appName))
         }
         
         val distinctClients = emailClients.distinctBy { it.packageName }
@@ -169,8 +165,8 @@ class EmailPreferencesManager(private val context: Context) {
      * Create an email intent targeting the preferred client if available
      */
     fun createEmailIntent(subject: String, body: String, forceChooser: Boolean = false): Intent {
-        val baseIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "message/rfc822"
+        val baseIntent = Intent(Intent.ACTION_SENDTO).apply {
+            data = Uri.parse("mailto:reminder@example.com") // Add dummy email to ensure email apps only
             putExtra(Intent.EXTRA_SUBJECT, subject)
             putExtra(Intent.EXTRA_TEXT, body)
         }

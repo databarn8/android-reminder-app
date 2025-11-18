@@ -54,11 +54,12 @@ class EnhancedEmailService {
                 emailPreferencesManager = EmailPreferencesManager(context)
             }
             
-            // Always use Email Settings for email client selection
-            // This ensures users set their preference in one place and it persists
-            val finalIntent = emailPreferencesManager?.createEmailIntent(
-                subject = String.format(EMAIL_SUBJECT, reminder.content.take(30)),
-                body = String.format(
+            // Create email intent with proper email-specific configuration
+            val emailIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "message/rfc822"
+                putExtra(Intent.EXTRA_EMAIL, arrayOf("")) // User can add recipient
+                putExtra(Intent.EXTRA_SUBJECT, String.format(EMAIL_SUBJECT, reminder.content.take(30)))
+                putExtra(Intent.EXTRA_TEXT, String.format(
                     EMAIL_BODY,
                     reminder.content,
                     formatReminderTime(reminder.reminderTime),
@@ -66,27 +67,18 @@ class EnhancedEmailService {
                     formatRepeatInfo(reminder.repeatType, reminder.repeatInterval),
                     reminder.category ?: "General",
                     formatPriority(reminder.importance)
-                ),
-                forceChooser = true // Always show chooser to allow user to select from Email Settings
-            ) ?: run {
-                val fallbackIntent = Intent(Intent.ACTION_SEND).apply {
-                    putExtra(Intent.EXTRA_EMAIL, arrayOf(""))
-                    putExtra(Intent.EXTRA_SUBJECT, String.format(EMAIL_SUBJECT, reminder.content.take(30)))
-                    putExtra(Intent.EXTRA_TEXT, String.format(
-                        EMAIL_BODY,
-                        reminder.content,
-                        formatReminderTime(reminder.reminderTime),
-                        formatReminderDate(reminder.whenDay),
-                        formatRepeatInfo(reminder.repeatType, reminder.repeatInterval),
-                        reminder.category ?: "General",
-                        formatPriority(reminder.importance)
-                    ))
-                    type = "message/rfc822"
-                }
-                Intent.createChooser(fallbackIntent, "Send reminder via email")
+                ))
             }
             
-            context.startActivity(finalIntent)
+            // Check if we have a preferred email client and forceChooser is false
+            if (!forceChooser && emailPreferencesManager?.hasPreferredEmailClient() == true) {
+                val preference = emailPreferencesManager?.getPreferredEmailClient()
+                emailIntent.setPackage(preference?.packageName)
+                context.startActivity(emailIntent)
+            } else {
+                // Show chooser
+                context.startActivity(Intent.createChooser(emailIntent, "Send reminder via email"))
+            }
             
         } catch (e: Exception) {
             // Fallback to basic sharing if email fails
@@ -118,53 +110,42 @@ class EnhancedEmailService {
                 emailPreferencesManager = EmailPreferencesManager(context)
             }
             
-            // Check if we have a preferred email client
-            if (emailPreferencesManager?.hasPreferredEmailClient() == true) {
-                // Use preferred client directly
-                val preference = emailPreferencesManager?.getPreferredEmailClient()
-                sendReminderEmailToSpecificClient(
-                    context = context,
-                    reminder = reminder,
-                    packageName = preference?.packageName ?: "",
-                    launcher = launcher
-                )
-            } else {
-                // No preference set, show chooser
-                val emailIntent = Intent(Intent.ACTION_SEND).apply {
-                    putExtra(Intent.EXTRA_EMAIL, arrayOf("")) // User can add recipient
-                    putExtra(Intent.EXTRA_SUBJECT, String.format(EMAIL_SUBJECT, reminder.content.take(30)))
-                    putExtra(Intent.EXTRA_TEXT, String.format(
-                        EMAIL_BODY,
-                        reminder.content,
-                        formatReminderTime(reminder.reminderTime),
-                        formatReminderDate(reminder.whenDay),
-                        formatRepeatInfo(reminder.repeatType, reminder.repeatInterval),
-                        reminder.category ?: "General",
-                        formatPriority(reminder.importance)
-                    ))
-                    type = "message/rfc822"
-                }
-                
-                // Try to create and attach file with reminder details
-                try {
-                    val reminderFile = createReminderFile(context, reminder)
-                    val fileUri = FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        reminderFile
-                    )
-                    
-                    // Grant temporary permission to file
-                    emailIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    emailIntent.putExtra(Intent.EXTRA_STREAM, fileUri)
-                } catch (fileException: Exception) {
-                    // Continue without attachment if file creation fails
-                    println("Could not create attachment: ${fileException.message}")
-                }
-                
-                // Launch chooser
-                launcher.launch(Intent.createChooser(emailIntent, "Send reminder via email"))
+            // Create Gmail intent directly - since Gmail is pre-installed on most Android devices
+            val gmailIntent = Intent(Intent.ACTION_SEND).apply {
+                setPackage("com.google.android.gm") // Target Gmail specifically
+                type = "message/rfc822"
+                putExtra(Intent.EXTRA_EMAIL, arrayOf("")) // User can add recipient
+                putExtra(Intent.EXTRA_SUBJECT, String.format(EMAIL_SUBJECT, reminder.content.take(30)))
+                putExtra(Intent.EXTRA_TEXT, String.format(
+                    EMAIL_BODY,
+                    reminder.content,
+                    formatReminderTime(reminder.reminderTime),
+                    formatReminderDate(reminder.whenDay),
+                    formatRepeatInfo(reminder.repeatType, reminder.repeatInterval),
+                    reminder.category ?: "General",
+                    formatPriority(reminder.importance)
+                ))
             }
+            
+            // Try to create and attach file with reminder details
+            try {
+                val reminderFile = createReminderFile(context, reminder)
+                val fileUri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    reminderFile
+                )
+                
+                // Grant temporary permission to file
+                gmailIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                gmailIntent.putExtra(Intent.EXTRA_STREAM, fileUri)
+            } catch (fileException: Exception) {
+                // Continue without attachment if file creation fails
+                println("Could not create attachment: ${fileException.message}")
+            }
+            
+            // Launch Gmail directly
+            launcher.launch(gmailIntent)
             
         } catch (e: Exception) {
             // Fallback to basic sharing if email fails
@@ -184,6 +165,7 @@ class EnhancedEmailService {
     ) {
         try {
             val emailIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "message/rfc822"
                 putExtra(Intent.EXTRA_EMAIL, arrayOf("")) // User can add recipient
                 putExtra(Intent.EXTRA_SUBJECT, String.format(EMAIL_SUBJECT, reminder.content.take(30)))
                 putExtra(Intent.EXTRA_TEXT, String.format(
@@ -195,7 +177,6 @@ class EnhancedEmailService {
                     reminder.category ?: "General",
                     formatPriority(reminder.importance)
                 ))
-                type = "message/rfc822"
                 setPackage(packageName) // Directly target specific email app
             }
             
@@ -237,14 +218,18 @@ class EnhancedEmailService {
             emailPreferencesManager = EmailPreferencesManager(context)
         }
         
+        android.util.Log.d("EmailService", "Updating email preference from intent: $chosenIntent")
+        
         // Try to extract package name from the chosen intent
         chosenIntent?.let { intent ->
             // First try to get package from the intent itself
             var packageName = intent.`package`
+            android.util.Log.d("EmailService", "Package from intent.`package`: $packageName")
             
             // If not found, try to get from component
             if (packageName == null) {
                 packageName = intent.component?.packageName
+                android.util.Log.d("EmailService", "Package from component: $packageName")
             }
             
             // If still not found, try to get from selector
@@ -252,18 +237,22 @@ class EnhancedEmailService {
                 val selector = intent.selector
                 if (selector != null) {
                     packageName = selector.`package`
+                    android.util.Log.d("EmailService", "Package from selector: $packageName")
                 }
             }
             
             // If we found a package name, save it as preference
-            if (packageName != null) {
+            if (packageName != null && packageName.isNotEmpty()) {
                 try {
                     val appInfo = context.packageManager.getApplicationInfo(packageName, 0)
                     val appName = context.packageManager.getApplicationLabel(appInfo).toString()
+                    android.util.Log.d("EmailService", "Saving email preference: $appName ($packageName)")
                     emailPreferencesManager?.savePreferredEmailClient(packageName, appName)
                 } catch (e: PackageManager.NameNotFoundException) {
-                    // Package not found, don't save preference
+                    android.util.Log.w("EmailService", "Package not found: $packageName", e)
                 }
+            } else {
+                android.util.Log.w("EmailService", "Could not extract package name from email intent")
             }
         }
     }
